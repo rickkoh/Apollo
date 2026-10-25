@@ -104,6 +104,13 @@ Record every new decision and question here.
   `src/shared/composables/`.**
 - **D39 Hub-down is a first-class UI state:** error code `hub_down`, event `hub-state { running }`, and the commands
   `overlay_visible`, `set_overlay_visible` and `clear_history` join §9.7.
+- **D40 Home's recent messages come from one cross-session query:** `Store::recent` → `HubHandle::recent` →
+  command `recent_messages`, rather than one `history` call per session.
+- **D41 `about` and `reveal_data_folder` commands** back Settings → About (version, data folder, Reveal in Finder).
+- **D42 `cv` status reads `PATH` from the user's login shell** (`$SHELL -ilc`), falling back to the app's own: an app
+  started from Finder doesn't inherit what shell profiles add. `CliStatus` also carries `upToDate` (our launcher points
+  at this copy of the app), which drives Install vs Reinstall.
+- **D43 The app menu gains a standard Window menu** (Minimize, Close Window) so ⌘W hides the panel.
 - **D30 ts-rs exports from every crate into one `shared/types/`** via `TS_RS_EXPORT_DIR` in `.cargo/config.toml`,
   including the shell's `Settings`, `UiError` and `CliStatus`.
 
@@ -642,8 +649,13 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `update_settings` | `patch` | `Settings` | panel |
 | `overlay_resize` | `height` | `()` | overlay |
 | `open_panel` | `route?` | `()` | overlay |
-| `cli_status` | | `CliStatus { installed, path, onPath, foreign }` | panel |
+| `cli_status` | | `CliStatus { installed, upToDate, path, onPath, foreign }` | panel |
 | `install_cli` | | `CliStatus` | panel |
+| `recent_messages` | `limit` | `Message[]` | panel |
+| `clear_history` | | `()` | panel |
+| `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |
+| `about` | | `AboutInfo { version, dataDir }` | panel |
+| `reveal_data_folder` | | `()` | panel |
 
 Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_target`, `target_offline`,
 `unknown_session`, `session_live`, `invalid_settings`, `cli_conflict`, `internal`.
@@ -1056,4 +1068,4 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 1 Skeleton | done | 2026-10-25 | all four checks passed; window check by CoreGraphics window list (no screen-capture permission) |
 | 2 Hub and channel | done | 2026-10-25 | 44 Rust + 15 channel + 4 end-to-end tests green; manual two-session check and Q11 passed |
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
-| 4 Control panel | not started | | |
+| 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |

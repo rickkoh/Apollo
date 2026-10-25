@@ -163,3 +163,22 @@ fn rename_persists() {
     }
     assert_eq!(open(&dir).sessions().unwrap()[0].title.as_deref(), Some("Payments"));
 }
+
+#[test]
+fn recent_spans_sessions_oldest_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = open(&dir);
+    let now = OffsetDateTime::now_utc();
+    store.upsert_session(&info("a"), now).unwrap();
+    store.upsert_session(&info("b"), now).unwrap();
+    for (session, text) in [("a", "a1"), ("b", "b1"), ("a", "a2"), ("b", "b2")] {
+        store
+            .insert_message(message(session, text, now, DeliveryStatus::Delivered))
+            .unwrap();
+    }
+    let recent = store.recent(3).unwrap();
+    assert_eq!(
+        recent.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(),
+        ["b1", "a2", "b2"]
+    );
+}

@@ -1,7 +1,10 @@
 use hub::{HubStatus, Message, MessageId, SessionId, SessionView};
+use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, State, WebviewWindow};
+use ts_rs::TS;
 
+use crate::cli::{self, CliStatus, Launcher};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
 use crate::settings::Settings;
@@ -43,6 +46,11 @@ pub async fn history(
 #[tauri::command]
 pub async fn mark_read(state: State<'_, AppState>, session: SessionId, upto: MessageId) -> CommandResult<()> {
     Ok(state.hub()?.mark_read(session, upto).await?)
+}
+
+#[tauri::command]
+pub async fn recent_messages(state: State<'_, AppState>, limit: u32) -> CommandResult<Vec<Message>> {
+    Ok(state.hub()?.recent(limit).await?)
 }
 
 #[tauri::command]
@@ -90,4 +98,53 @@ pub fn set_overlay_visible(app: AppHandle, visible: bool) -> CommandResult<()> {
 #[tauri::command]
 pub fn open_panel(app: AppHandle, route: Option<String>) -> CommandResult<()> {
     panel::open(&app, route.as_deref()).map_err(UiError::internal)
+}
+
+fn launcher(state: &AppState) -> Launcher {
+    Launcher {
+        bin_dir: state.paths.bin.clone(),
+        plugin_dir: state.paths.plugin.clone(),
+    }
+}
+
+#[tauri::command]
+pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> {
+    let launcher = launcher(&state);
+    tauri::async_runtime::spawn_blocking(move || launcher.status(cli::login_shell_path().as_deref()))
+        .await
+        .map_err(UiError::internal)
+}
+
+#[tauri::command]
+pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
+    let launcher = launcher(&state);
+    tauri::async_runtime::spawn_blocking(move || launcher.install(cli::login_shell_path().as_deref()))
+        .await
+        .map_err(UiError::internal)?
+        .map_err(UiError::from)
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AboutInfo {
+    pub version: String,
+    pub data_dir: String,
+}
+
+#[tauri::command]
+pub fn about(app: AppHandle, state: State<'_, AppState>) -> AboutInfo {
+    AboutInfo {
+        version: app.package_info().version.to_string(),
+        data_dir: state.paths.data.to_string_lossy().into_owned(),
+    }
+}
+
+#[tauri::command]
+pub fn reveal_data_folder(state: State<'_, AppState>) -> CommandResult<()> {
+    std::process::Command::new("open")
+        .arg(&state.paths.data)
+        .status()
+        .map_err(UiError::internal)
+        .map(|_| ())
 }

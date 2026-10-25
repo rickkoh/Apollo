@@ -137,6 +137,11 @@ impl Store for MemoryStore {
         Ok(out)
     }
 
+    fn recent(&self, limit: u32) -> Result<Vec<Message>, StoreError> {
+        let skip = self.messages.len().saturating_sub(limit as usize);
+        Ok(self.messages[skip..].to_vec())
+    }
+
     fn mark_read(&mut self, id: &SessionId, upto: MessageId) -> Result<(), StoreError> {
         if let Some(s) = self.session_mut(id) {
             s.last_read = s.last_read.max(upto.0);

@@ -232,6 +232,16 @@ impl Store for SqliteStore {
         Ok(out)
     }
 
+    fn recent(&self, limit: u32) -> Result<Vec<Message>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, session_id, direction, text, created_at, status, detail FROM messages ORDER BY id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], raw_message)?;
+        let mut out = rows.map(|r| to_message(r?)).collect::<Result<Vec<_>, _>>()?;
+        out.reverse();
+        Ok(out)
+    }
+
     fn mark_read(&mut self, id: &SessionId, upto: MessageId) -> Result<(), StoreError> {
         self.conn.execute(
             "UPDATE sessions SET last_read = MAX(last_read, ?2) WHERE id = ?1",

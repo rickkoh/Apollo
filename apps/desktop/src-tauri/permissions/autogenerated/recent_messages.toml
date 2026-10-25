@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recent-messages"
+description = "Enables the recent_messages command without any pre-configured scope."
+commands.allow = ["recent_messages"]
+
+[[permission]]
+identifier = "deny-recent-messages"
+description = "Denies the recent_messages command without any pre-configured scope."
+commands.deny = ["recent_messages"]

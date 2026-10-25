@@ -188,6 +188,12 @@ impl HubHandle {
         .unwrap_or(Err(HubError::Stopped))
     }
 
+    pub async fn recent(&self, limit: u32) -> Result<Vec<Message>, HubError> {
+        self.ask(|answer| Command::Recent { limit, answer })
+            .await
+            .unwrap_or(Err(HubError::Stopped))
+    }
+
     pub async fn mark_read(&self, id: SessionId, upto: MessageId) -> Result<(), HubError> {
         self.ask(|answer| Command::MarkRead { id, upto, answer })
             .await

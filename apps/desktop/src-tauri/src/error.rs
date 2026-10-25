@@ -2,6 +2,7 @@ use hub::{HubError, SendError};
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::cli::CliError;
 use crate::settings::SettingsError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -15,6 +16,7 @@ pub enum UiErrorCode {
     UnknownSession,
     SessionLive,
     InvalidSettings,
+    CliConflict,
     HubDown,
     Internal,
 }
@@ -72,6 +74,15 @@ impl From<HubError> for UiError {
             HubError::Bind(_) | HubError::Store(_) => return Self::internal(err),
         };
         Self::new(code, err.to_string())
+    }
+}
+
+impl From<CliError> for UiError {
+    fn from(err: CliError) -> Self {
+        match err {
+            CliError::Conflict(_) => Self::new(UiErrorCode::CliConflict, err.to_string()),
+            CliError::Io(_) => Self::internal(err),
+        }
     }
 }
 

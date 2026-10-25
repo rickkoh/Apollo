@@ -2,6 +2,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
+    AboutInfo,
+    CliStatus,
     HubState,
     HubStatus,
     Message,
@@ -39,6 +41,7 @@ export const setTarget = (id: SessionId) => call<void>('set_target', { id })
 export const send = (text: string) => call<Message>('send', { text })
 export const history = (session: SessionId, limit: number, before?: MessageId) =>
     call<Message[]>('history', { session, before: before ?? null, limit })
+export const recentMessages = (limit: number) => call<Message[]>('recent_messages', { limit })
 export const markRead = (session: SessionId, upto: MessageId) => call<void>('mark_read', { session, upto })
 export const renameSession = (id: SessionId, title: string | null) => call<void>('rename_session', { id, title })
 export const forgetSession = (id: SessionId) => call<void>('forget_session', { id })
@@ -48,6 +51,10 @@ export const updateSettings = (patch: object) => call<Settings>('update_settings
 export const overlayResize = (height: number) => call<void>('overlay_resize', { height })
 export const overlayVisible = () => call<boolean>('overlay_visible')
 export const setOverlayVisible = (visible: boolean) => call<void>('set_overlay_visible', { visible })
+export const cliStatus = () => call<CliStatus>('cli_status')
+export const installCli = () => call<CliStatus>('install_cli')
+export const about = () => call<AboutInfo>('about')
+export const revealDataFolder = () => call<void>('reveal_data_folder')
 export const openPanel = (route?: string) => call<void>('open_panel', { route: route ?? null })
 
 export const onSessionsChanged = (cb: (sessions: SessionView[]) => void) => on('sessions-changed', cb)

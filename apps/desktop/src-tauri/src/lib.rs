@@ -1,3 +1,4 @@
+mod cli;
 mod commands;
 mod error;
 mod events;
@@ -38,6 +39,8 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let paths = AppPaths {
         discovery: data.join("hub.json"),
+        plugin: app.path().resource_dir()?.join("plugin/voice"),
+        bin: app.path().home_dir()?.join(".local/bin"),
         data,
     };
 
@@ -105,6 +108,7 @@ pub fn run() {
             commands::send,
             commands::history,
             commands::mark_read,
+            commands::recent_messages,
             commands::rename_session,
             commands::forget_session,
             commands::clear_history,
@@ -114,6 +118,10 @@ pub fn run() {
             commands::overlay_visible,
             commands::set_overlay_visible,
             commands::open_panel,
+            commands::cli_status,
+            commands::install_cli,
+            commands::about,
+            commands::reveal_data_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Voice Bridge")

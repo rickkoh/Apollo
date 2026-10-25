@@ -14,6 +14,11 @@ const COMMANDS: &[&str] = &[
     "overlay_visible",
     "set_overlay_visible",
     "open_panel",
+    "recent_messages",
+    "cli_status",
+    "install_cli",
+    "about",
+    "reveal_data_folder",
 ];
 
 fn main() {

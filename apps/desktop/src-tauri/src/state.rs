@@ -9,6 +9,10 @@ use crate::settings::SettingsService;
 pub struct AppPaths {
     pub data: PathBuf,
     pub discovery: PathBuf,
+    /// The bundled voice plugin `cv` loads.
+    pub plugin: PathBuf,
+    /// Where `cv` is installed (`~/.local/bin`).
+    pub bin: PathBuf,
 }
 
 /// Managed Tauri state: the running hub (absent once stopped) and the settings service.

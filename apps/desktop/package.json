@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "dev": "npm run plugin && vite",
+    "build": "npm run plugin && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit",
     "tauri": "tauri",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\"",
+    "plugin": "npm --prefix ../../plugin/voice run build"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4",

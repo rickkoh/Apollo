@@ -39,6 +39,8 @@ pub trait Store: Send {
     fn fail_all_queued(&mut self, detail: &str) -> Result<u64, StoreError>;
     /// The latest `limit` messages older than `before`, oldest first.
     fn history(&self, id: &SessionId, before: Option<MessageId>, limit: u32) -> Result<Vec<Message>, StoreError>;
+    /// The latest `limit` messages across all sessions, oldest first.
+    fn recent(&self, limit: u32) -> Result<Vec<Message>, StoreError>;
     fn mark_read(&mut self, id: &SessionId, upto: MessageId) -> Result<(), StoreError>;
     fn rename(&mut self, id: &SessionId, title: Option<&str>) -> Result<(), StoreError>;
     fn forget(&mut self, id: &SessionId) -> Result<(), StoreError>;

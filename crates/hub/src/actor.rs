@@ -68,6 +68,10 @@ pub(crate) enum Command {
         limit: u32,
         answer: Answer<Result<Vec<Message>, HubError>>,
     },
+    Recent {
+        limit: u32,
+        answer: Answer<Result<Vec<Message>, HubError>>,
+    },
     MarkRead {
         id: SessionId,
         upto: MessageId,
@@ -179,6 +183,9 @@ impl HubActor {
                 answer,
             } => {
                 let _ = answer.send(self.store.history(&id, before, limit).map_err(HubError::from));
+            }
+            Command::Recent { limit, answer } => {
+                let _ = answer.send(self.store.recent(limit).map_err(HubError::from));
             }
             Command::MarkRead { id, upto, answer } => {
                 let result = self.store.mark_read(&id, upto).map_err(HubError::from);
