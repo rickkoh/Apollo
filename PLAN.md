@@ -1033,7 +1033,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 
 | Phase | Status | Date | Notes |
 |---|---|---|---|
-| 1 Skeleton | not started | | |
+| 1 Skeleton | done | 2026-10-25 | all four checks passed; window check by CoreGraphics window list (no screen-capture permission) |
 | 2 Hub and channel | not started | | |
 | 3 S3 and overlay | not started | | |
 | 4 Control panel | not started | | |
