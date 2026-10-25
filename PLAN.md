@@ -168,6 +168,14 @@ Record every new decision and question here.
   forward-only and the app refuses a database newer than it knows, with a clear message.
 - **D60 A `release` skill:** check the tree and tests, compute the version and notes, show them and
   ask, then `scripts/release.sh` bumps, builds, uploads, writes the feed, commits, tags and pushes.
+- **D61 Every value the user sees in the overlay is a setting** (§8.3): width, reply fade, cards in the stack, text
+  box lines, expanded reply height and the picker's ended-session window, with D36's behaviour as the defaults. Hub
+  and protocol timing stays in `HubConfig`, since its values depend on each other; UI micro-timings, page sizes and
+  design tokens stay in code.
+- **D62 Setting ranges live once, in `settings::LIMITS`:** `validate` enforces them and the `settings_limits`
+  command serves them, so the Settings page builds its rows, bounds and hints from them instead of repeating them.
+- **D63 Each window loads its settings before it mounts** (`provideSettings`) and components `inject` them, so no
+  component handles missing settings or repeats a default. The overlay re-places itself when the width changes.
 - **D64 A message delivered to an idle session that starts no turn within `pickup_timeout` (10 s) is flagged**
   "Claude hasn't picked this up", reusing `detail` on `delivered`, and the overlay shows it under the echo card. A
   refused channel still connects and acknowledges, and no file check sees an organization's allowlist. Any change of
@@ -749,15 +757,36 @@ CREATE TABLE meta (
 ```json
 {
   "version": 1,
-  "overlay": { "visibleAtLaunch": true, "replyPreviewLines": 3 },
+  "overlay": {
+    "visibleAtLaunch": true,
+    "width": 420,
+    "replyPreviewLines": 3,
+    "replyFadeSeconds": 20,
+    "maxCards": 3,
+    "inputLines": 3,
+    "expandedHeightPercent": 40,
+    "pickerEndedHours": 24
+  },
   "sessions": { "targetNew": true },
   "history": { "retentionDays": 30 },
   "shortcuts": { "focusInput": null, "toggleOverlay": null }
 }
 ```
 
-- The `Settings` service loads with defaults for missing keys, validates (`replyPreviewLines` 1–8, `retentionDays`
-  1–365), writes atomically, and emits `settings-changed`.
+- The `Settings` service loads with defaults for missing keys, validates against `LIMITS` (D62), writes atomically,
+  and emits `settings-changed`.
+
+| Key | Range | Meaning |
+|---|---|---|
+| `overlay.width` | 320–720 | logical px, shadow margin included |
+| `overlay.replyPreviewLines` | 1–8 | lines a card shows before **more** |
+| `overlay.replyFadeSeconds` | 5–300 | how long a card shows once it starts fading |
+| `overlay.maxCards` | 1–6 | cards in the stack; the oldest leaves first |
+| `overlay.inputLines` | 1–8 | lines the text box grows to |
+| `overlay.expandedHeightPercent` | 20–80 | share of the screen height an expanded card can fill |
+| `overlay.pickerEndedHours` | 0–168 | how long an ended session stays in the picker; 0 hides them |
+| `history.retentionDays` | 1–365 | applied at startup |
+
 - `update_settings` takes a partial patch; unknown keys are rejected. It passes `sessions.targetNew` to the hub.
 - `shortcuts` is stored now and read by the Shortcuts skeleton; nothing registers global shortcuts yet.
 
@@ -783,7 +812,7 @@ Nothing else constructs services.
 | Created | at startup, hidden | on first open; afterwards hidden and reshown |
 | Builder | `decorations(false)`, `transparent(true)`, `shadow(false)`, `always_on_top(true)`, `visible_on_all_workspaces(true)`, `skip_taskbar(true)`, `resizable(false)`, `focused(false)` | `title_bar_style(Overlay)`, `hidden_title(true)`, `traffic_light_position(16, 24)` (D95), 960 × 640, minimum 760 × 520, `center()` |
 | Native | `macos::float_over_full_screen` after building (§9.4) | none |
-| Size | width 420 logical px; height from `overlay_resize` | user-resizable |
+| Size | width from `overlay.width`; height from `overlay_resize` | user-resizable |
 | Position | bottom-right of the primary display's work area, 16 px margin (§9.5) | centred on first open |
 | Close | impossible (no chrome) | `CloseRequested` → `prevent_close()` + hide |
 
@@ -812,7 +841,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 - The overlay root has a `ResizeObserver`; on change it calls `overlay_resize(contentHeight)` (debounced to one
   animation frame).
 - The shell computes, in logical units from `primary_monitor().work_area()` and the scale factor:
-  `x = area.x + area.width − 16 − 420`, `y = area.y + area.height − 16 − height`, then sets size and position
+  `x = area.x + area.width − 16 − width`, `y = area.y + area.height − 16 − height`, then sets size and position
   together so the bottom edge stays anchored.
 - The window adds a 12 px transparent margin inside its bounds so island shadows aren't clipped.
 - Recomputed on every resize, on show, and on `ScaleFactorChanged`; a screen-change observer comes later.
@@ -842,6 +871,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `forget_session` | `id` | `()` | panel |
 | `get_settings` | | `Settings` | both |
 | `update_settings` | `patch` | `Settings` | panel |
+| `settings_limits` | | `SettingsLimits` | panel |
 | `overlay_resize` | `height` | `()` | overlay |
 | `open_panel` | `route?` | `()` | overlay |
 | `cli_status` | | `CliStatus { installed, upToDate, path, onPath, foreign, approval, approvalCommand }` | panel |
@@ -930,7 +960,7 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 |---|---|
 | `useSessions()` | `{ sessions: Ref<SessionView[]>, live: ComputedRef<SessionView[]> }`; loads once, then follows `sessions-changed` |
 | `useTarget()` | `{ target: ComputedRef<SessionView \| null>, select(id) }`; follows `target-changed` |
-| `useStack(target, onUndelivered)` | `{ stack: MessageStack, hovered: Ref<boolean> }` (D36); marks the target's replies read when shown |
+| `useStack(target, options, onUndelivered)` | `{ stack: MessageStack, hovered: Ref<boolean> }` (D36); marks the target's replies read when shown |
 | `usePasteToSend(el, { paste, enter })` | D3: `paste` → `preventDefault()` + `paste(clipboardData text)`; Enter → `preventDefault()` + `enter()`, which sends the box; Shift+Enter is a newline |
 | `useAutoResize(root)` | `ResizeObserver` → `overlay_resize` |
 
@@ -938,10 +968,10 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 
 | Component | Props | Emits | Notes |
 |---|---|---|---|
-| `InputIsland` | `target`, `status: 'live' \| 'pending' \| 'offline' \| 'hub-down'` | `send(text)`, `toggle-picker` | owns the text box; restores text on a failed send |
-| `MessageStack` | `cards`, `previewLines` | `hover`, `open-panel` | transition group of `ReplyIsland` cards (D36) |
-| `ReplyIsland` | `card`, `previewLines` | `update:expanded`, `open-panel` | one card: clamped preview, **more** expands, click toggles |
-| `SessionPicker` | `sessions`, `targetId` | `select(id)`, `close` | live first, then ended (disabled); Esc or outside click closes |
+| `InputIsland` | `target`, `status: 'live' \| 'pending' \| 'offline' \| 'hub-down'`, `maxLines` | `send(text)`, `toggle-picker` | owns the text box; restores text on a failed send |
+| `MessageStack` | `cards`, `previewLines`, `expandedHeightPercent` | `hover`, `open-panel` | transition group of `ReplyIsland` cards (D36) |
+| `ReplyIsland` | `card`, `previewLines`, `expandedHeightPercent` | `update:expanded`, `open-panel` | one card: clamped preview, **more** expands, click toggles |
+| `SessionPicker` | `sessions`, `targetId`, `endedHours` | `select(id)`, `close` | live first, then ended (disabled); Esc or outside click closes |
 | `Sidebar` | `collapsed` | | logo, nav, Settings at the bottom; an icon rail when collapsed |
 | `SettingsDialog` | `section` | | modal `<dialog>`: section nav, version, `Settings` for the section; Esc, the close button or a backdrop click closes it (D95) |
 
@@ -1009,14 +1039,14 @@ Picking a session:
 |---|---|
 | Status dot | green: target live · amber: last message still queued · grey: no live target · red: hub not running |
 | Session chip | target title, or "No session"; "· working" while the target is busy (D49); ▾ opens the picker; a small dot when another session has unread replies |
-| Text box | grows to three lines; paste sends at once (D3); Enter sends; Shift+Enter adds a line; disabled with a hint when there is no live target |
+| Text box | grows to `inputLines` lines; paste sends at once (D3); Enter sends; Shift+Enter adds a line; disabled with a hint when there is no live target |
 | Send feedback | a brief tick on `delivered`; on failure the reason shows in the reply island and the text returns to the box if it is empty |
 
-**Message stack (D36):** up to three cards above the input, each clamped to `replyPreviewLines` with **more** to
-expand up to 40% of the screen height, scrollable; clicking toggles expand and collapse; double-click opens the target
+**Message stack (D36):** up to `maxCards` cards above the input, each clamped to `replyPreviewLines` with **more** to
+expand up to `expandedHeightPercent` of the screen height, scrollable; clicking toggles expand and collapse; double-click opens the target
 in the panel. Errors use the same card in `--error`.
 
-**Picker:** live sessions first (title; folder as a tooltip; unread dot), then sessions ended in the last 24 hours,
+**Picker:** live sessions first (title; folder as a tooltip; unread dot), then sessions ended in the last `pickerEndedHours` hours,
 greyed out and not selectable. Selecting calls `set_target` and closes.
 
 **Copy**
@@ -1079,7 +1109,7 @@ pages scroll inside the sheet below it, so it never scrolls away. Settings opens
 | Sessions | table of live and ended sessions: title with an unread pill, folder, last activity; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only) as icon buttons (D96); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
 | Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
-| Settings | a dialog (D95). **General:** show the overlay at launch; target new sessions (D92). **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
+| Settings | a dialog (D95). **General:** show the overlay at launch; target new sessions (D92). **Overlay:** every `overlay` number in §8.3, one row each, bounds and hints from `settings_limits`. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
 
 ### 10.9 Accessibility
 

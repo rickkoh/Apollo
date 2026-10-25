@@ -5,13 +5,12 @@ import StatusDot from '../../shared/components/StatusDot.vue'
 import { clock, withinHours } from '../../shared/format'
 import type { SessionId, SessionView } from '../../shared/types'
 
-const props = defineProps<{ sessions: SessionView[]; targetId: SessionId | null; command: string }>()
+const props = defineProps<{ sessions: SessionView[]; targetId: SessionId | null; command: string; endedHours: number }>()
 const emit = defineEmits<{ select: [id: SessionId]; close: [] }>()
 
-const ENDED_WINDOW_HOURS = 24
 const rows = computed(() => [
     ...props.sessions.filter(s => s.live),
-    ...props.sessions.filter(s => !s.live && withinHours(s.lastActivity, ENDED_WINDOW_HOURS)),
+    ...props.sessions.filter(s => !s.live && props.endedHours > 0 && withinHours(s.lastActivity, props.endedHours)),
 ])
 
 function onKey(event: KeyboardEvent): void {

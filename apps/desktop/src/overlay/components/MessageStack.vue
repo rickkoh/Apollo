@@ -2,7 +2,7 @@
 import type { Card } from '../stack'
 import ReplyIsland from './ReplyIsland.vue'
 
-const props = defineProps<{ cards: Card[]; previewLines: number }>()
+const props = defineProps<{ cards: Card[]; previewLines: number; expandedHeightPercent: number }>()
 const emit = defineEmits<{ hover: [hovered: boolean]; 'open-panel': [] }>()
 </script>
 
@@ -21,6 +21,7 @@ const emit = defineEmits<{ hover: [hovered: boolean]; 'open-panel': [] }>()
             v-model:expanded="card.expanded"
             :card="card"
             :preview-lines="props.previewLines"
+            :expanded-height-percent="props.expandedHeightPercent"
             @open-panel="emit('open-panel')"
         />
     </TransitionGroup>

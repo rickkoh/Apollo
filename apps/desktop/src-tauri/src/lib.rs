@@ -191,6 +191,7 @@ pub fn run() {
             commands::clear_history,
             commands::get_settings,
             commands::update_settings,
+            commands::settings_limits,
             commands::overlay_resize,
             commands::overlay_visible,
             commands::set_overlay_visible,

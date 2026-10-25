@@ -13,8 +13,10 @@ export interface Card {
     expanded: boolean
 }
 
-export const MAX_CARDS = 3
-export const FADE_MS = 20_000
+export interface StackOptions {
+    fadeMs: number
+    maxCards: number
+}
 
 /**
  * The overlay's timeline of the target's messages, newest last. Replies aren't paired with the messages they answer,
@@ -22,6 +24,17 @@ export const FADE_MS = 20_000
  */
 export class MessageStack {
     cards: Card[] = []
+    private options: StackOptions
+
+    constructor(options: StackOptions) {
+        this.options = options
+    }
+
+    /** A new fade applies to cards that start fading afterwards; a smaller cap drops the oldest cards at once. */
+    configure(options: StackOptions): void {
+        this.options = options
+        this.trim()
+    }
 
     clear(): void {
         this.cards = []
@@ -53,9 +66,9 @@ export class MessageStack {
 
     reply(message: Message): void {
         for (const card of this.cards) {
-            if (card.kind === 'sent' && card.ttl === null) card.ttl = FADE_MS
+            if (card.kind === 'sent' && card.ttl === null) card.ttl = this.options.fadeMs
         }
-        this.push({ key: `m${message.id}`, kind: 'reply', text: message.text, message, ttl: FADE_MS, expanded: false })
+        this.push({ key: `m${message.id}`, kind: 'reply', text: message.text, message, ttl: this.options.fadeMs, expanded: false })
     }
 
     error(text: string): void {
@@ -77,6 +90,10 @@ export class MessageStack {
 
     private push(card: Card): void {
         this.cards.push(card)
-        while (this.cards.length > MAX_CARDS) this.cards.shift()
+        this.trim()
+    }
+
+    private trim(): void {
+        while (this.cards.length > this.options.maxCards) this.cards.shift()
     }
 }

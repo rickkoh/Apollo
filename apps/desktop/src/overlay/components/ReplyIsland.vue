@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Card } from '../stack'
 
-const props = defineProps<{ card: Card; previewLines: number }>()
+const props = defineProps<{ card: Card; previewLines: number; expandedHeightPercent: number }>()
 const emit = defineEmits<{ 'update:expanded': [expanded: boolean]; 'open-panel': [] }>()
 
 const body = ref<HTMLElement | null>(null)
 const overflowing = ref(false)
-const maxExpanded = `${Math.round(window.screen.availHeight * 0.4)}px`
+const maxExpanded = computed(() => `${Math.round((window.screen.availHeight * props.expandedHeightPercent) / 100)}px`)
 
 async function measure(): Promise<void> {
     await nextTick()

@@ -27,7 +27,15 @@ pub struct Settings {
 #[ts(export)]
 pub struct OverlaySettings {
     pub visible_at_launch: bool,
+    /// Logical pixels, including the transparent shadow margin the page draws inside the window.
+    pub width: u16,
     pub reply_preview_lines: u8,
+    pub reply_fade_seconds: u16,
+    pub max_cards: u8,
+    pub input_lines: u8,
+    pub expanded_height_percent: u8,
+    /// Ended sessions stay in the picker this long; 0 hides them.
+    pub picker_ended_hours: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -69,7 +77,13 @@ impl Default for OverlaySettings {
     fn default() -> Self {
         Self {
             visible_at_launch: true,
+            width: 420,
             reply_preview_lines: 3,
+            reply_fade_seconds: 20,
+            max_cards: 3,
+            input_lines: 3,
+            expanded_height_percent: 40,
+            picker_ended_hours: 24,
         }
     }
 }
@@ -86,6 +100,75 @@ impl Default for HistorySettings {
     }
 }
 
+/// Inclusive range of a numeric setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct Limit {
+    pub min: u16,
+    pub max: u16,
+}
+
+impl Limit {
+    const fn new(min: u16, max: u16) -> Self {
+        Self { min, max }
+    }
+
+    fn check(self, value: u16, what: &str) -> Result<(), SettingsError> {
+        if (self.min..=self.max).contains(&value) {
+            Ok(())
+        } else {
+            Err(SettingsError::Invalid(format!(
+                "{what} must be between {} and {}",
+                self.min, self.max
+            )))
+        }
+    }
+}
+
+/// The ranges `validate` enforces, also served to the Settings page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SettingsLimits {
+    pub overlay: OverlayLimits,
+    pub history: HistoryLimits,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OverlayLimits {
+    pub width: Limit,
+    pub reply_preview_lines: Limit,
+    pub reply_fade_seconds: Limit,
+    pub max_cards: Limit,
+    pub input_lines: Limit,
+    pub expanded_height_percent: Limit,
+    pub picker_ended_hours: Limit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HistoryLimits {
+    pub retention_days: Limit,
+}
+
+pub const LIMITS: SettingsLimits = SettingsLimits {
+    overlay: OverlayLimits {
+        width: Limit::new(320, 720),
+        reply_preview_lines: Limit::new(1, 8),
+        reply_fade_seconds: Limit::new(5, 300),
+        max_cards: Limit::new(1, 6),
+        input_lines: Limit::new(1, 8),
+        expanded_height_percent: Limit::new(20, 80),
+        picker_ended_hours: Limit::new(0, 168),
+    },
+    history: HistoryLimits {
+        retention_days: Limit::new(1, 365),
+    },
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
     #[error("{0}")]
@@ -96,17 +179,32 @@ pub enum SettingsError {
 
 impl Settings {
     fn validate(&self) -> Result<(), SettingsError> {
-        if !(1..=8).contains(&self.overlay.reply_preview_lines) {
-            return Err(SettingsError::Invalid(
-                "reply preview lines must be between 1 and 8".into(),
-            ));
-        }
-        if !(1..=365).contains(&self.history.retention_days) {
-            return Err(SettingsError::Invalid(
-                "history must be kept between 1 and 365 days".into(),
-            ));
-        }
-        Ok(())
+        let (o, l) = (&self.overlay, &LIMITS.overlay);
+        let checks: [(Limit, u16, &str); 8] = [
+            (l.width, o.width, "overlay width"),
+            (
+                l.reply_preview_lines,
+                o.reply_preview_lines.into(),
+                "reply preview lines",
+            ),
+            (l.reply_fade_seconds, o.reply_fade_seconds, "reply fade seconds"),
+            (l.max_cards, o.max_cards.into(), "cards in the stack"),
+            (l.input_lines, o.input_lines.into(), "text box lines"),
+            (
+                l.expanded_height_percent,
+                o.expanded_height_percent.into(),
+                "expanded reply height",
+            ),
+            (l.picker_ended_hours, o.picker_ended_hours, "ended session hours"),
+            (
+                LIMITS.history.retention_days,
+                self.history.retention_days,
+                "days of history",
+            ),
+        ];
+        checks
+            .into_iter()
+            .try_for_each(|(limit, value, what)| limit.check(value, what))
     }
 }
 
@@ -231,12 +329,31 @@ mod tests {
     }
 
     #[test]
+    fn defaults_fall_inside_their_limits() {
+        Settings::default().validate().unwrap();
+    }
+
+    #[test]
     fn out_of_range_values_are_rejected_and_nothing_changes() {
         let (dir, service) = service();
         assert!(service.update(json!({"overlay": {"replyPreviewLines": 0}})).is_err());
+        assert!(service.update(json!({"overlay": {"width": 319}})).is_err());
+        assert!(service.update(json!({"overlay": {"replyFadeSeconds": 4}})).is_err());
+        assert!(service.update(json!({"overlay": {"maxCards": 7}})).is_err());
+        assert!(service.update(json!({"overlay": {"pickerEndedHours": 169}})).is_err());
         assert!(service.update(json!({"history": {"retentionDays": 366}})).is_err());
         assert_eq!(service.get(), Settings::default());
         assert!(!dir.path().join("settings.json").exists());
+    }
+
+    #[test]
+    fn limit_edges_are_accepted() {
+        let (_dir, service) = service();
+        let updated = service
+            .update(json!({"overlay": {"width": 720, "pickerEndedHours": 0, "expandedHeightPercent": 20}}))
+            .unwrap();
+        assert_eq!(updated.overlay.width, 720);
+        assert_eq!(updated.overlay.picker_ended_hours, 0);
     }
 
     #[test]

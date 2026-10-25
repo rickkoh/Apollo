@@ -10,6 +10,7 @@ const COMMANDS: &[&str] = &[
     "clear_history",
     "get_settings",
     "update_settings",
+    "settings_limits",
     "overlay_resize",
     "overlay_visible",
     "set_overlay_visible",

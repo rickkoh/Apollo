@@ -16,6 +16,7 @@
     "allow-clear-history",
     "allow-get-settings",
     "allow-update-settings",
+    "allow-settings-limits",
     "allow-overlay-visible",
     "allow-set-overlay-visible",
     "allow-recent-messages",

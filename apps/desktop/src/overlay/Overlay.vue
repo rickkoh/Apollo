@@ -30,8 +30,12 @@ api.about().then(info => {
 const hub = useHub()
 const { sessions } = useSessions()
 const { target, select } = useTarget(sessions)
-const { stack, hovered } = useStack(target, text => input.value?.restore(text))
 const { settings } = useSettings()
+const { stack, hovered } = useStack(
+    target,
+    () => ({ fadeMs: settings.value.overlay.replyFadeSeconds * 1000, maxCards: settings.value.overlay.maxCards }),
+    text => input.value?.restore(text),
+)
 useAutoResize(root)
 
 const status = computed<DotState>(() => {
@@ -106,13 +110,15 @@ function openPanel(): void {
             :sessions="sessions"
             :command="command"
             :target-id="target?.id ?? null"
+            :ended-hours="settings.overlay.pickerEndedHours"
             @select="choose"
             @close="pickerOpen = false"
         />
         <MessageStack
             v-else
             :cards="stack.cards"
-            :preview-lines="settings?.overlay.replyPreviewLines ?? 3"
+            :preview-lines="settings.overlay.replyPreviewLines"
+            :expanded-height-percent="settings.overlay.expandedHeightPercent"
             @hover="hovered = $event"
             @open-panel="openPanel"
         />
@@ -125,6 +131,7 @@ function openPanel(): void {
             :delivered="delivered"
             :dev="dev"
             :command="command"
+            :max-lines="settings.overlay.inputLines"
             @send="send"
             @toggle-picker="pickerOpen = !pickerOpen"
         />

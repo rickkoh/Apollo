@@ -13,12 +13,12 @@ const props = defineProps<{
     delivered: boolean
     dev: boolean
     command: string
+    maxLines: number
 }>()
 const emit = defineEmits<{ send: [text: string]; 'toggle-picker': [] }>()
 
 const box = ref<HTMLTextAreaElement | null>(null)
 const text = ref('')
-const MAX_LINES = 3
 
 const disabled = computed(() => props.status === 'hub-down' || !props.target?.live)
 const placeholder = computed(() => {
@@ -32,9 +32,9 @@ function grow(): void {
     if (!el) return
     el.style.height = 'auto'
     const line = parseFloat(getComputedStyle(el).lineHeight)
-    el.style.height = `${Math.min(el.scrollHeight, line * MAX_LINES)}px`
+    el.style.height = `${Math.min(el.scrollHeight, line * props.maxLines)}px`
 }
-watch(text, () => nextTick(grow))
+watch([text, () => props.maxLines], () => nextTick(grow))
 
 function sendBox(): void {
     if (!text.value.trim() || disabled.value) return

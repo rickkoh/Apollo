@@ -9,15 +9,17 @@ use crate::state::AppState;
 use crate::tray;
 
 pub const LABEL: &str = "overlay";
-/// Logical width, including the transparent shadow margin the page draws inside it.
-pub const WIDTH: f64 = 420.0;
 const INITIAL_HEIGHT: f64 = 72.0;
 const SCREEN_MARGIN: f64 = 16.0;
+
+fn width<M: Manager<tauri::Wry>>(manager: &M) -> f64 {
+    manager.state::<AppState>().settings.get().overlay.width.into()
+}
 
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("overlay.html".into()))
         .title(format!("{} Overlay", app.package_info().name))
-        .inner_size(WIDTH, INITIAL_HEIGHT)
+        .inner_size(width(app), INITIAL_HEIGHT)
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -46,23 +48,32 @@ fn current_height(window: &WebviewWindow) -> f64 {
         .map_or(INITIAL_HEIGHT, |size| size.height as f64 / scale)
 }
 
-/// Sizes the window to `height` and anchors its bottom corner to the primary display's work area: bottom-right, or
-/// bottom-left for Apollo Dev (D52).
+/// Sizes the window to the width setting and `height`, and anchors its bottom corner to the primary display's work
+/// area: bottom-right, or bottom-left for Apollo Dev (D52).
 pub fn place(window: &WebviewWindow, height: f64) -> tauri::Result<()> {
     let Some(monitor) = window.primary_monitor()? else {
         return Ok(());
     };
+    let width = width(window);
     let scale = monitor.scale_factor();
     let area = monitor.work_area();
     let left = area.position.x as f64 / scale;
     let right = (area.position.x as f64 + area.size.width as f64) / scale;
     let bottom = (area.position.y as f64 + area.size.height as f64) / scale;
     let x = match window.state::<AppState>().channel {
-        Channel::Stable => right - SCREEN_MARGIN - WIDTH,
+        Channel::Stable => right - SCREEN_MARGIN - width,
         Channel::Dev => left + SCREEN_MARGIN,
     };
-    window.set_size(LogicalSize::new(WIDTH, height))?;
+    window.set_size(LogicalSize::new(width, height))?;
     window.set_position(LogicalPosition::new(x, bottom - SCREEN_MARGIN - height))
+}
+
+/// Re-places the overlay at its current height.
+pub fn reposition(app: &AppHandle) -> tauri::Result<()> {
+    match app.get_webview_window(LABEL) {
+        Some(window) => place(&window, current_height(&window)),
+        None => Ok(()),
+    }
 }
 
 pub fn is_visible(app: &AppHandle) -> bool {

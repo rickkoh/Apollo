@@ -4,7 +4,15 @@ import * as api from '../../shared/api'
 import { useCli } from '../../shared/composables/useCli'
 import { useHub } from '../../shared/composables/useHub'
 import { useSettings } from '../../shared/composables/useSettings'
-import type { AboutInfo, ApprovalState, EditorPanel, IdePanelStatus, PluginStatus } from '../../shared/types'
+import type {
+    AboutInfo,
+    ApprovalState,
+    EditorPanel,
+    IdePanelStatus,
+    Limit,
+    PluginStatus,
+    SettingsLimits,
+} from '../../shared/types'
 import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
@@ -81,6 +89,23 @@ const approval = computed(() => cli.status.value?.approval ?? null)
 const approvalCopy = useCopy()
 const copyApproval = () => approvalCopy.copy(cli.status.value?.approvalCommand ?? '')
 
+const limits = ref<SettingsLimits | null>(null)
+api.settingsLimits().then(l => (limits.value = l))
+
+const overlayRows: { key: keyof SettingsLimits['overlay']; label: string; hint: string; unit?: string }[] = [
+    { key: 'width', label: 'Overlay width', hint: 'Width of the overlay', unit: 'px' },
+    { key: 'replyPreviewLines', label: 'Reply preview lines', hint: 'Lines of a reply shown before “more”' },
+    { key: 'replyFadeSeconds', label: 'Replies fade after', hint: 'Hovering the stack or expanding a card pauses it', unit: 'seconds' },
+    { key: 'maxCards', label: 'Messages in the stack', hint: 'The oldest leaves first' },
+    { key: 'expandedHeightPercent', label: 'Expanded reply height', hint: 'Share of the screen an expanded reply can fill', unit: '%' },
+    { key: 'inputLines', label: 'Text box height', hint: 'Lines the text box grows to before it scrolls', unit: 'lines' },
+    { key: 'pickerEndedHours', label: 'Ended sessions in the picker', hint: 'How long an ended session stays listed; 0 hides them', unit: 'hours' },
+]
+
+function range(limit: Limit): string {
+    return `${limit.min}–${limit.max}`
+}
+
 const error = ref<string | null>(null)
 const confirmingClear = ref(false)
 
@@ -96,7 +121,7 @@ async function setOpenAtLogin(enabled: boolean): Promise<void> {
 }
 const cleared = ref(false)
 
-async function patch(change: object): Promise<void> {
+async function patch(change: api.SettingsPatch): Promise<void> {
     error.value = null
     try {
         settings.value = await api.updateSettings(change)
@@ -151,18 +176,24 @@ async function clearAll(): Promise<void> {
         </Card>
     </template>
 
-    <template v-if="settings && props.section === 'overlay'">
+    <template v-if="settings && limits && props.section === 'overlay'">
         <h1>Overlay</h1>
         <Card>
-            <SettingRow label="Reply preview lines" hint="Lines of a reply shown before “more” (1–8)">
+            <SettingRow
+                v-for="row in overlayRows"
+                :key="row.key"
+                :label="row.label"
+                :hint="`${row.hint} (${range(limits.overlay[row.key])})`"
+            >
                 <input
                     type="number"
-                    min="1"
-                    max="8"
-                    aria-label="Reply preview lines"
-                    :value="settings.overlay.replyPreviewLines"
-                    @change="e => patch({ overlay: { replyPreviewLines: numberFrom(e) } })"
+                    :min="limits.overlay[row.key].min"
+                    :max="limits.overlay[row.key].max"
+                    :aria-label="row.label"
+                    :value="settings.overlay[row.key]"
+                    @change="e => patch({ overlay: { [row.key]: numberFrom(e) } })"
                 />
+                <span v-if="row.unit" class="dim">{{ row.unit }}</span>
             </SettingRow>
         </Card>
     </template>
@@ -216,14 +247,17 @@ async function clearAll(): Promise<void> {
         </Card>
     </template>
 
-    <template v-if="settings && props.section === 'history'">
+    <template v-if="settings && limits && props.section === 'history'">
         <h1>History</h1>
         <Card>
-            <SettingRow label="Keep history for" hint="Older messages are removed at startup (1–365 days)">
+            <SettingRow
+                label="Keep history for"
+                :hint="`Older messages are removed at startup (${range(limits.history.retentionDays)} days)`"
+            >
                 <input
                     type="number"
-                    min="1"
-                    max="365"
+                    :min="limits.history.retentionDays.min"
+                    :max="limits.history.retentionDays.max"
                     aria-label="Days to keep history"
                     :value="settings.history.retentionDays"
                     @change="e => patch({ history: { retentionDays: numberFrom(e) } })"

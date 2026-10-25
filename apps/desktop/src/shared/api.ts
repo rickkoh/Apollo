@@ -16,12 +16,16 @@ import type {
     SessionId,
     SessionView,
     Settings,
+    SettingsLimits,
     TargetChanged,
     UiError,
     UpdateStatus,
 } from './types'
 
 export type { UnlistenFn }
+
+/** A partial `Settings`: any group, and any keys within it. */
+export type SettingsPatch = { [G in keyof Settings]?: Settings[G] extends object ? Partial<Settings[G]> : Settings[G] }
 
 export function isUiError(value: unknown): value is UiError {
     return typeof value === 'object' && value !== null && 'code' in value && 'message' in value
@@ -55,7 +59,8 @@ export const renameSession = (id: SessionId, title: string | null) => call<void>
 export const forgetSession = (id: SessionId) => call<void>('forget_session', { id })
 export const clearHistory = () => call<void>('clear_history')
 export const getSettings = () => call<Settings>('get_settings')
-export const updateSettings = (patch: object) => call<Settings>('update_settings', { patch })
+export const updateSettings = (patch: SettingsPatch) => call<Settings>('update_settings', { patch })
+export const settingsLimits = () => call<SettingsLimits>('settings_limits')
 export const overlayResize = (height: number) => call<void>('overlay_resize', { height })
 export const overlayVisible = () => call<boolean>('overlay_visible')
 export const setOverlayVisible = (visible: boolean) => call<void>('set_overlay_visible', { visible })

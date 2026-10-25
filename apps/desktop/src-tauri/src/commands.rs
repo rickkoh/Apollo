@@ -12,7 +12,7 @@ use crate::ide_panel::{IdePanelLauncher, IdePanelStatus};
 use crate::login_shell;
 use crate::macos;
 use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
-use crate::settings::Settings;
+use crate::settings::{LIMITS, Settings, SettingsLimits};
 use crate::state::AppState;
 use crate::updates::{UpdateStatus, Updates};
 use crate::windows::{overlay, panel};
@@ -81,12 +81,23 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 
 #[tauri::command]
 pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: Value) -> CommandResult<Settings> {
+    let width = state.settings.get().overlay.width;
     let settings = state.settings.update(patch)?;
+    if settings.overlay.width != width
+        && let Err(err) = overlay::reposition(&app)
+    {
+        tracing::error!("re-placing the overlay failed: {err}");
+    }
     if let Ok(hub) = state.hub() {
         hub.set_target_new_sessions(settings.sessions.target_new).await?;
     }
     events::emit(&app, SETTINGS_CHANGED, settings.clone());
     Ok(settings)
+}
+
+#[tauri::command]
+pub fn settings_limits() -> SettingsLimits {
+    LIMITS
 }
 
 #[tauri::command]
