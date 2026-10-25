@@ -116,7 +116,7 @@ async function clearAll(): Promise<void> {
         <Card>
             <SettingRow
                 label="cv"
-                :hint="cli.status.value?.installed ? (cli.status.value.upToDate ? 'Installed' : 'Installed, points at another copy of the app') : 'Not installed'"
+                :hint="cli.status.value?.installed ? (cli.status.value.upToDate ? 'Installed' : 'Installed, a reinstall is due') : 'Not installed'"
             >
                 <button class="button" type="button" :disabled="cli.busy.value || cli.status.value?.foreign" @click="install">
                     {{ cli.status.value?.installed ? 'Reinstall' : 'Install' }}
