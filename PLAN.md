@@ -931,7 +931,7 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 | `useSessions()` | `{ sessions: Ref<SessionView[]>, live: ComputedRef<SessionView[]> }`; loads once, then follows `sessions-changed` |
 | `useTarget()` | `{ target: ComputedRef<SessionView \| null>, select(id) }`; follows `target-changed` |
 | `useStack(target, onUndelivered)` | `{ stack: MessageStack, hovered: Ref<boolean> }` (D36); marks the target's replies read when shown |
-| `usePasteToSend(el, send)` | D3: `paste` → `preventDefault()` + `send(clipboardData text)`; Enter sends the box; Shift+Enter is a newline |
+| `usePasteToSend(el, { paste, enter })` | D3: `paste` → `preventDefault()` + `paste(clipboardData text)`; Enter → `preventDefault()` + `enter()`, which sends the box; Shift+Enter is a newline |
 | `useAutoResize(root)` | `ResizeObserver` → `overlay_resize` |
 
 ### 10.5 Components

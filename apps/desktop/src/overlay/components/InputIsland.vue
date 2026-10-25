@@ -42,9 +42,11 @@ function sendBox(): void {
     text.value = ''
 }
 
-usePasteToSend(box, sent => {
-    if (sent === text.value) sendBox()
-    else if (!disabled.value) emit('send', sent)
+usePasteToSend(box, {
+    paste: pasted => {
+        if (!disabled.value) emit('send', pasted)
+    },
+    enter: sendBox,
 })
 
 defineExpose({

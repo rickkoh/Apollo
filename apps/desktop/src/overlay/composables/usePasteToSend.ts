@@ -4,18 +4,20 @@ import { onMounted, onScopeDispose, type Ref } from 'vue'
  * D3: a paste sends the clipboard text at once and cancels the web view's own insertion, which comes up empty
  * from Wispr Flow's second dictation on. Enter sends the box; Shift+Enter adds a line.
  */
-export function usePasteToSend(box: Ref<HTMLTextAreaElement | null>, send: (text: string) => void): void {
+export function usePasteToSend(
+    box: Ref<HTMLTextAreaElement | null>,
+    send: { paste: (text: string) => void; enter: () => void },
+): void {
     function onPaste(event: ClipboardEvent): void {
         event.preventDefault()
         const text = event.clipboardData?.getData('text/plain') ?? ''
-        if (text.trim()) send(text)
+        if (text.trim()) send.paste(text)
     }
 
     function onKeydown(event: KeyboardEvent): void {
         if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
         event.preventDefault()
-        const text = box.value?.value ?? ''
-        if (text.trim()) send(text)
+        send.enter()
     }
 
     onMounted(() => {
