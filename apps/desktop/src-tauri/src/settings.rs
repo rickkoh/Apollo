@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
-pub const SETTINGS_VERSION: u32 = 1;
+pub const SETTINGS_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
@@ -64,12 +64,25 @@ pub struct HistorySettings {
     pub retention_days: u16,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+/// A shortcut is a double tap of one modifier key, held or not on the second press.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 #[ts(export)]
 pub struct ShortcutSettings {
-    pub focus_input: Option<String>,
-    pub toggle_overlay: Option<String>,
+    pub focus_input: Option<ModifierKey>,
+    pub toggle_overlay: Option<ModifierKey>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ModifierKey {
+    LeftOption,
+    RightOption,
+    LeftCommand,
+    RightCommand,
+    LeftControl,
+    RightControl,
 }
 
 impl Default for Settings {
@@ -109,6 +122,15 @@ impl Default for SessionSettings {
 impl Default for HistorySettings {
     fn default() -> Self {
         Self { retention_days: 30 }
+    }
+}
+
+impl Default for ShortcutSettings {
+    fn default() -> Self {
+        Self {
+            focus_input: Some(ModifierKey::RightOption),
+            toggle_overlay: None,
+        }
     }
 }
 
@@ -216,8 +238,24 @@ impl Settings {
         ];
         checks
             .into_iter()
-            .try_for_each(|(limit, value, what)| limit.check(value, what))
+            .try_for_each(|(limit, value, what)| limit.check(value, what))?;
+        let s = &self.shortcuts;
+        if s.focus_input.is_some() && s.focus_input == s.toggle_overlay {
+            return Err(SettingsError::Invalid("each shortcut needs its own key".into()));
+        }
+        Ok(())
     }
+}
+
+/// Version 1 stored `shortcuts` before any could be set, so its values are dropped for the defaults.
+fn migrate(mut value: Value) -> Value {
+    if value.get("version").and_then(Value::as_u64).unwrap_or(1) < 2
+        && let Some(settings) = value.as_object_mut()
+    {
+        settings.remove("shortcuts");
+        settings.insert("version".into(), SETTINGS_VERSION.into());
+    }
+    value
 }
 
 fn merge(base: &mut Value, patch: Value) {
@@ -245,7 +283,10 @@ pub struct SettingsService {
 impl SettingsService {
     pub fn load(path: PathBuf) -> Self {
         let current = match fs::read_to_string(&path) {
-            Ok(text) => match serde_json::from_str::<Settings>(&text) {
+            Ok(text) => match serde_json::from_str(&text)
+                .map(migrate)
+                .and_then(serde_json::from_value::<Settings>)
+            {
                 Ok(settings) if settings.validate().is_ok() => settings,
                 _ => {
                     tracing::warn!("settings.json is invalid; using defaults");
@@ -382,6 +423,38 @@ mod tests {
             .unwrap();
         assert_eq!(updated.overlay.width, 720);
         assert_eq!(updated.overlay.picker_ended_hours, 0);
+    }
+
+    #[test]
+    fn a_version_1_file_takes_the_default_shortcuts_and_keeps_the_rest() {
+        let (dir, _) = service();
+        fs::write(
+            dir.path().join("settings.json"),
+            r#"{"version":1,"history":{"retentionDays":7},"shortcuts":{"focusInput":null,"toggleOverlay":null}}"#,
+        )
+        .unwrap();
+        let loaded = SettingsService::load(dir.path().join("settings.json")).get();
+        assert_eq!(loaded.version, SETTINGS_VERSION);
+        assert_eq!(loaded.history.retention_days, 7);
+        assert_eq!(loaded.shortcuts, ShortcutSettings::default());
+    }
+
+    #[test]
+    fn a_shortcut_can_be_switched_off_and_two_cannot_share_a_key() {
+        let (dir, service) = service();
+        service.update(json!({"shortcuts": {"focusInput": null}})).unwrap();
+        assert_eq!(
+            SettingsService::load(dir.path().join("settings.json"))
+                .get()
+                .shortcuts
+                .focus_input,
+            None
+        );
+        assert!(
+            service
+                .update(json!({"shortcuts": {"focusInput": "leftCommand", "toggleOverlay": "leftCommand"}}))
+                .is_err()
+        );
     }
 
     #[test]

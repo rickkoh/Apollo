@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import * as api from '../../shared/api'
+import { useListener } from '../../shared/composables/useListener'
 import { useSettings } from '../../shared/composables/useSettings'
 import InputIsland from '../components/InputIsland.vue'
 import MessageStack from '../components/MessageStack.vue'
@@ -15,6 +17,12 @@ const { sessions, target, stack, hovered, status, otherUnread, delivered, dev, c
         fadeMs: () => settings.value.overlay.replyFadeSeconds * 1000,
         restore: text => input.value?.restore(text),
     })
+
+useListener(api.onOverlaySummon(({ released }) => {
+    if (released) return
+    pickerOpen.value = false
+    api.overlayKeyboard(true).then(() => input.value?.focus(), () => {})
+}))
 
 const size = useElementSize(root)
 useFrame(() => ({ width: settings.value.overlay.width, height: size.value.height }))

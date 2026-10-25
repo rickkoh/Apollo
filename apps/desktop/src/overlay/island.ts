@@ -2,9 +2,11 @@ export type IslandState = 'hidden' | 'compact' | 'peek' | 'open'
 
 export const DWELL_MS = 150
 export const GRACE_MS = 300
+/** How long a summoned island waits for a send once the shortcut's key comes up. */
+export const SUMMON_IDLE_MS = 5000
 
 /**
- * The island's state from the pointer, the panel's keyboard and arriving messages. The caller owns the clock: it
+ * The island's state from the pointer, the panel's keyboard, the focus shortcut and arriving messages. The caller owns the clock: it
  * passes `now` (ms) in and calls `advance(now)` once `due` has passed.
  */
 export class Island {
@@ -15,6 +17,8 @@ export class Island {
     private mode: 'closed' | 'peek' | 'open' = 'closed'
     private inside = false
     private dismissed = false
+    /** Opened by the shortcut: the pointer leaving doesn't close it, a send does. */
+    private summoned = false
     private openAt: number | null = null
     private closeAt: number | null = null
     private peekUntil: number | null = null
@@ -34,11 +38,12 @@ export class Island {
         this.inside = inside
         this.dismissed = false
         if (inside) {
+            this.summoned = false
             this.closeAt = null
             if (this.mode !== 'open') this.openAt = now + DWELL_MS
         } else {
             this.openAt = null
-            if (this.mode === 'open') this.closeAt = now + GRACE_MS
+            if (this.mode === 'open' && !this.summoned) this.closeAt = now + GRACE_MS
         }
     }
 
@@ -50,6 +55,21 @@ export class Island {
         } else if (!has && this.mode === 'open') {
             this.dismiss()
         }
+    }
+
+    /** The focus shortcut fired. */
+    summon(): void {
+        this.open()
+        this.summoned = true
+    }
+
+    /** The shortcut's held key came up. */
+    released(now: number): void {
+        if (this.summoned && this.mode === 'open') this.closeAt = now + SUMMON_IDLE_MS
+    }
+
+    sent(): void {
+        if (this.summoned) this.close()
     }
 
     escape(): void {
@@ -96,6 +116,7 @@ export class Island {
 
     private close(): void {
         this.mode = 'closed'
+        this.summoned = false
         this.closeAt = null
         this.peekUntil = null
     }

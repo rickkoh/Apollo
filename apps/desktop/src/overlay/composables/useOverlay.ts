@@ -17,6 +17,7 @@ export interface OverlayOptions {
     /** Puts text that wasn't sent back in the box. */
     restore: (text: string) => void
     onReply?: () => void
+    onSent?: () => void
     onError?: () => void
 }
 
@@ -85,6 +86,7 @@ export function useOverlay(options: OverlayOptions) {
         stack.beginSend()
         try {
             stack.sent(await api.send(text))
+            options.onSent?.()
         } catch (err) {
             if (api.isUiError(err) && err.code === 'empty') return
             showError(err)

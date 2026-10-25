@@ -25,11 +25,12 @@ const { sessions, target, hub, stack, status, otherUnread, delivered, dev, comma
         restore: text => input.value?.restore(text),
         onReply: () => reply(),
         onError: () => error(),
+        onSent: () => sent(),
     })
 
 const busy = computed(() => target.value?.activity === 'busy')
 const failing = computed(() => !hub.running.value || stack.cards.some(c => c.kind === 'error'))
-const { island, escape, reply, error } = useIsland({
+const { island, escape, reply, error, sent } = useIsland({
     news: () => busy.value || failing.value || stack.pending,
     peekMs: () => settings.value.overlay.replyFadeSeconds * 1000,
     onOpen: () => input.value?.focus(),

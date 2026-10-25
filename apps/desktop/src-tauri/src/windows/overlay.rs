@@ -7,7 +7,10 @@ use tauri::{
 use ts_rs::TS;
 
 use crate::channel::Channel;
-use crate::events::{self, OVERLAY_GEOMETRY, OVERLAY_POINTER, OVERLAY_VISIBILITY, OverlayPointer, OverlayVisibility};
+use crate::events::{
+    self, OVERLAY_GEOMETRY, OVERLAY_POINTER, OVERLAY_SUMMON, OVERLAY_VISIBILITY, OverlayPointer, OverlaySummon,
+    OverlayVisibility,
+};
 use crate::macos::{self, island};
 use crate::settings::OverlayLayout;
 use crate::state::AppState;
@@ -216,6 +219,18 @@ pub fn set_visible(app: &AppHandle, visible: bool) -> tauri::Result<()> {
 
 pub fn toggle(app: &AppHandle) -> tauri::Result<()> {
     set_visible(app, !is_visible(app))
+}
+
+/// Shows the overlay and has the page open it with the keyboard in the text box.
+pub fn summon(app: &AppHandle) -> tauri::Result<()> {
+    set_visible(app, true)?;
+    events::emit(app, OVERLAY_SUMMON, OverlaySummon { released: false });
+    Ok(())
+}
+
+/// The key held after the summoning tap came up.
+pub fn summon_released(app: &AppHandle) {
+    events::emit(app, OVERLAY_SUMMON, OverlaySummon { released: true });
 }
 
 #[cfg(test)]

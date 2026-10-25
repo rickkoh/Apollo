@@ -24,8 +24,10 @@ Record every new decision and question here.
   files) and survive restarts. This is the app's own data, not agent memory.
 - **R8 Dictation.** Clicking the overlay's text box and dictating with Wispr Flow sends at once; typed text sends on
   Enter.
-- **R9 Shortcuts.** A Shortcuts page exists as a skeleton (for example a hotkey that focuses the text box); the
-  shortcuts themselves come later.
+- **R9 Shortcuts.** Global shortcuts that work from any app, with no permission prompt: a double tap of one modifier
+  key, fired on the second press, which may be held as a dictation app's hold-to-talk key. By default right ⌥ opens
+  the island with the cursor in its text box; it closes once the paste is sent, or 5 s after the key comes up if
+  nothing was.
 - **R10 No Remote Control.** Everything works with Remote Control switched off; the organization disables it.
 - **R11 Quality.** Designed at a low level, SOLID, no code smells, ready to extend with features, robustness and tests.
 - **R12 Home.** Lives in `~/Desktop/apollo`; the user sets up git and a remote.
@@ -756,7 +758,7 @@ CREATE TABLE meta (
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "overlay": {
     "visibleAtLaunch": true,
     "width": 420,
@@ -769,7 +771,7 @@ CREATE TABLE meta (
   },
   "sessions": { "targetNew": true },
   "history": { "retentionDays": 30 },
-  "shortcuts": { "focusInput": null, "toggleOverlay": null }
+  "shortcuts": { "focusInput": "rightOption", "toggleOverlay": null }
 }
 ```
 
@@ -788,15 +790,18 @@ CREATE TABLE meta (
 | `history.retentionDays` | 1–365 | applied at startup |
 
 - `update_settings` takes a partial patch; unknown keys are rejected. It passes `sessions.targetNew` to the hub.
-- `shortcuts` is stored now and read by the Shortcuts skeleton; nothing registers global shortcuts yet.
+- `shortcuts` maps an action to the modifier key whose double tap runs it (R9): `leftOption`, `rightOption`,
+  `leftCommand`, `rightCommand`, `leftControl`, `rightControl`, or `null` for off. Two actions cannot share a key.
+- Version 2 adds the shortcuts: loading a version 1 file drops its `shortcuts`, which could never be set, for the
+  defaults.
 
 ## 9. Desktop shell
 
 ### 9.1 Dependencies
 
 `tauri` 2 (features `macos-private-api`, `tray-icon`), `tauri-plugin-log`, `tauri-plugin-single-instance`,
-`objc2` + `objc2-app-kit` (for `macos.rs`), `serde`, `serde_json`, `thiserror`, `ts-rs`, the `hub` crate. Later:
-`tauri-plugin-global-shortcut`, `tauri-plugin-autostart`.
+`objc2` + `objc2-app-kit` + `objc2-core-graphics` + `block2` (for `macos.rs`), `serde`, `serde_json`, `thiserror`,
+`ts-rs`, the `hub` crate. Later: `tauri-plugin-autostart`.
 
 ### 9.2 Composition root (`lib.rs`)
 
@@ -1108,7 +1113,7 @@ pages scroll inside the sheet below it, so it never scrolls away. Settings opens
 | Home | greeting; status cards (overlay on or off with a toggle, live sessions, target); the `cv` command with Copy, or an Install button when `cv` isn't installed; recent messages across sessions grouped by day |
 | Sessions | table of live and ended sessions: title with an unread pill, folder, last activity; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only) as icon buttons (D96); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
-| Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
+| Shortcuts | "Focus the voice box" and "Show or hide the overlay", each with a picker: Off or a double-tapped modifier key |
 | Settings | a dialog (D95). **General:** show the overlay at launch; target new sessions (D92). **Overlay:** every `overlay` number in §8.3, one row each, bounds and hints from `settings_limits`. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
 
 ### 10.9 Accessibility
@@ -1279,7 +1284,7 @@ After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater repla
 
 ### Phase 7 — later
 
-Global shortcuts (R9), focus hand-back after a send (Q3), a screen-change observer, multiple displays
+Focus hand-back after a send (Q3), a screen-change observer, multiple displays
 (Q13), signing and notarisation.
 
 ## 16. Constraints

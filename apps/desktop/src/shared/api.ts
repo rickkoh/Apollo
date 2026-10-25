@@ -13,6 +13,7 @@ import type {
     MessageUpdated,
     OverlayGeometry,
     OverlayPointer,
+    OverlaySummon,
     OverlayVisibility,
     PluginStatus,
     SessionId,
@@ -90,6 +91,7 @@ export const onSettingsChanged = (cb: (settings: Settings) => void) => on('setti
 export const onOverlayPointer = (cb: (payload: OverlayPointer) => void) => on('overlay-pointer', cb)
 export const onOverlayGeometry = (cb: (geometry: OverlayGeometry) => void) => on('overlay-geometry', cb)
 export const onOverlayVisibility = (cb: (payload: OverlayVisibility) => void) => on('overlay-visibility', cb)
+export const onOverlaySummon = (cb: (payload: OverlaySummon) => void) => on('overlay-summon', cb)
 export const onHubState = (cb: (payload: HubState) => void) => on('hub-state', cb)
 export const onUpdateStatus = (cb: (status: UpdateStatus) => void) => on('update-status', cb)
 export const onPanelNavigate = (cb: (route: string) => void) => on('panel-navigate', cb)

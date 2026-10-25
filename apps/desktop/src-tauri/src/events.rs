@@ -13,6 +13,7 @@ pub const SETTINGS_CHANGED: &str = "settings-changed";
 pub const OVERLAY_VISIBILITY: &str = "overlay-visibility";
 pub const OVERLAY_POINTER: &str = "overlay-pointer";
 pub const OVERLAY_GEOMETRY: &str = "overlay-geometry";
+pub const OVERLAY_SUMMON: &str = "overlay-summon";
 pub const HUB_STATE: &str = "hub-state";
 pub const UPDATE_STATUS: &str = "update-status";
 
@@ -40,6 +41,13 @@ pub struct OverlayVisibility {
 #[ts(export)]
 pub struct OverlayPointer {
     pub inside: bool,
+}
+
+/// The focus shortcut fired, or its held key came up.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct OverlaySummon {
+    pub released: bool,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

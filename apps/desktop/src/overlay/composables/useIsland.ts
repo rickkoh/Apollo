@@ -32,6 +32,7 @@ export function useIsland(options: IslandOptions) {
 
     watchEffect(() => (island.news = options.news()))
     useListener(api.onOverlayPointer(({ inside }) => run(now => island.pointer(inside, now))))
+    useListener(api.onOverlaySummon(({ released }) => run(now => (released ? island.released(now) : island.summon()))))
 
     const onFocus = () => run(now => island.keyboard(true, now))
     const onBlur = () => run(now => island.keyboard(false, now))
@@ -54,6 +55,7 @@ export function useIsland(options: IslandOptions) {
     return {
         island,
         escape: () => run(() => island.escape()),
+        sent: () => run(() => island.sent()),
         reply: () => run(now => island.reply(now, options.peekMs())),
         error: () => run(now => island.error(now, options.peekMs())),
     }

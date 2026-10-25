@@ -12,6 +12,7 @@ mod plugin_cli;
 mod presence;
 mod retention;
 mod settings;
+mod shortcuts;
 mod state;
 mod tray;
 mod updates;
@@ -107,6 +108,7 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     windows::overlay::create(app)?;
     windows::overlay::set_visible(app, visible_at_launch)?;
+    shortcuts::watch(app);
     if channel == Channel::Stable {
         check_for_updates_every(app.clone());
     }

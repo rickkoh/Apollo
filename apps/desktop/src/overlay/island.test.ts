@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { DWELL_MS, GRACE_MS, Island } from './island.ts'
+import { DWELL_MS, GRACE_MS, Island, SUMMON_IDLE_MS } from './island.ts'
 
 const PEEK_MS = 20_000
 
@@ -108,4 +108,59 @@ test('news shows the wings while closed', () => {
     assert.equal(island.state, 'compact')
     island.news = false
     assert.equal(island.state, 'hidden')
+})
+
+test('the shortcut opens it at once, and the pointer being elsewhere does not close it', () => {
+    const island = new Island()
+    island.summon()
+    assert.equal(island.state, 'open')
+    island.keyboard(true, 0)
+    assert.equal(at(island, 10_000).state, 'open')
+})
+
+test('a summoned island closes once a message is sent', () => {
+    const island = new Island()
+    island.summon()
+    island.released(1000)
+    island.sent()
+    assert.equal(island.state, 'hidden')
+    assert.equal(island.due, null)
+})
+
+test('a summoned island closes when nothing is sent soon after the key comes up', () => {
+    const island = new Island()
+    island.summon()
+    island.released(1000)
+    assert.equal(at(island, 1000 + SUMMON_IDLE_MS - 1).state, 'open')
+    assert.equal(at(island, 1000 + SUMMON_IDLE_MS).state, 'hidden')
+})
+
+test('hovering a summoned island hands it back to the pointer', () => {
+    const island = new Island()
+    island.summon()
+    island.pointer(true, 0)
+    island.released(100)
+    island.sent()
+    assert.equal(island.state, 'open')
+    island.pointer(false, 500)
+    assert.equal(at(island, 500 + GRACE_MS).state, 'hidden')
+})
+
+test('a summoned island still closes on Esc or losing the keyboard', () => {
+    const escaped = new Island()
+    escaped.summon()
+    escaped.escape()
+    assert.equal(escaped.state, 'hidden')
+    const blurred = new Island()
+    blurred.summon()
+    blurred.keyboard(false, 0)
+    assert.equal(blurred.state, 'hidden')
+})
+
+test('a send without the shortcut changes nothing', () => {
+    const island = new Island()
+    island.pointer(true, 0)
+    island.advance(DWELL_MS)
+    island.sent()
+    assert.equal(island.state, 'open')
 })

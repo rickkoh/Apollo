@@ -17,6 +17,7 @@ hub = { path = "../../../crates/hub" }
 log = "0.4"
 objc2 = "0.6"
 objc2-app-kit = "0.3"
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes"] }
 objc2-foundation = "0.3"
 objc2-service-management = "0.3"
 serde.workspace = true
