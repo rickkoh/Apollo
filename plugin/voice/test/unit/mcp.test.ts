@@ -30,11 +30,15 @@ test('declares the channel capability, the instructions and the reply tool', asy
     assert.deepEqual(tools.map(t => t.name), ['reply'])
 })
 
-test('the server, plugin.json and package.json carry one version', async () => {
+test('the server, plugin.json, both package.json files and the Cargo workspace carry one version', async () => {
     const client = await connect({ connected: true, reply: async () => {} })
-    const version = (file: string) => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8')).version
-    assert.equal(client.getServerVersion()?.version, version('../../.claude-plugin/plugin.json'))
-    assert.equal(client.getServerVersion()?.version, version('../../package.json'))
+    const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8')
+    const version = (file: string) => JSON.parse(read(file)).version
+    const server = client.getServerVersion()?.version
+    assert.equal(server, version('../../.claude-plugin/plugin.json'))
+    assert.equal(server, version('../../package.json'))
+    assert.equal(server, version('../../../../apps/desktop/package.json'))
+    assert.equal(server, /\[workspace\.package\][^[]*?\nversion = "([^"]+)"/.exec(read('../../../../Cargo.toml'))?.[1])
 })
 
 test('a panel session is told to answer dictation with reply and typed messages in the chat', async () => {

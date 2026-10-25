@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import pkg from '../package.json' with { type: 'json' }
 import type { Host } from './env.ts'
 import type { HubClient } from './hub-client.ts'
 
@@ -26,7 +27,7 @@ function result(text: string, isError = false): CallToolResult {
 
 export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>, host: Host = 'terminal'): Server {
     const server = new Server(
-        { name: 'voice', version: '0.1.0' },
+        { name: 'voice', version: pkg.version },
         {
             capabilities: { experimental: { 'claude/channel': {} }, tools: {} },
             instructions: host === 'panel' ? PANEL_INSTRUCTIONS : INSTRUCTIONS,
