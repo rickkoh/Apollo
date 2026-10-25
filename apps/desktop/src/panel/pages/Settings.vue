@@ -50,7 +50,7 @@ function editorHint(editor: EditorPanel): string {
         case 'unset':
             return 'Add the line below to its settings.json (Preferences: Open User Settings (JSON))'
         case 'other':
-            return `Uses another wrapper (${editor.current}), left alone`
+            return `Uses another wrapper (${editor.current}); to use Voice Bridge's, replace it with the line below`
     }
 }
 
@@ -173,11 +173,11 @@ async function clearAll(): Promise<void> {
         <Card>
             <SettingRow label="cv-panel" :hint="panelHint" />
             <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
-                <button v-if="editor.wrapper === 'unset'" class="button" type="button" @click="copySetting">
+                <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
                     {{ copiedSetting ? 'Copied' : 'Copy' }}
                 </button>
             </SettingRow>
-            <pre v-if="panel?.editors.some(e => e.wrapper === 'unset')" class="command"><code>{{ panel.setting }}</code></pre>
+            <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
             <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
         </Card>
 

@@ -1244,7 +1244,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | built; manual checks pending | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green |
-| 5b IDE panels | in progress | 2026-10-26 | S6 passed with a prototype bridge (§24) |
+| 5b IDE panels | built; manual checks pending | 2026-10-26 | S6 passed with a prototype bridge; the bundled bridge, panel instructions, `cv-panel` and the Settings section are in; every automated check green |
 | 6a Rename and channels | not started | | |
 | 6b Changelog and release tooling | not started | | |
 | 6c Self-update and first releases | not started | | |
@@ -1491,7 +1491,8 @@ exec "$@"
 - Install writes `cv-panel` beside `cv`, under the same marker rules.
 - Settings → Cursor and VS Code panels: `cv-panel`'s state and, for each editor found on this Mac (Cursor:
   `~/Library/Application Support/Cursor/User/settings.json`; VS Code: `…/Code/User/settings.json`), whether
-  `claudeCode.claudeProcessWrapper` is ours, unset (the line to add, with Copy) or another wrapper (left alone).
+  `claudeCode.claudeProcessWrapper` is ours, unset or another wrapper, with the line to add or replace it and Copy;
+  the app never edits the editors' settings.
 - Only panel sessions started after the setting carry voice. Removing the setting returns panels to how they were.
 
 ### 24.4 Panel instructions (D69)
