@@ -53,10 +53,10 @@ test('enables the channel after the initialize answer, which still reaches the h
     const [request] = enables(b.toClaude)
     assert.deepEqual(JSON.parse(request!), {
         type: 'control_request',
-        request_id: 'voice-bridge-1',
+        request_id: 'apollo-1',
         request: { subtype: 'channel_enable', serverName: 'plugin:voice:voice' },
     })
-    b.claude.stdout.write(answer('voice-bridge-1'))
+    b.claude.stdout.write(answer('apollo-1'))
     await settle()
     assert.equal(b.toHost.length, 1, 'our answer never reaches the host')
     assert.deepEqual(b.logs, ['voice channel enabled'])
@@ -67,9 +67,9 @@ test('retries while the server is still connecting and stops once enabled', asyn
     b.host.input.write(initialize)
     b.claude.stdout.write(answer('init-1'))
     await settle()
-    b.claude.stdout.write(answer('voice-bridge-1', notConnected))
+    b.claude.stdout.write(answer('apollo-1', notConnected))
     await settle()
-    b.claude.stdout.write(answer('voice-bridge-2'))
+    b.claude.stdout.write(answer('apollo-2'))
     await settle()
     assert.equal(enables(b.toClaude).length, 2)
     assert.equal(b.toHost.length, 1)
@@ -80,7 +80,7 @@ test('gives up on a refusal, and after the last attempt', async () => {
     refused.host.input.write(initialize)
     refused.claude.stdout.write(answer('init-1'))
     await settle()
-    refused.claude.stdout.write(answer('voice-bridge-1', { subtype: 'error', error: 'not on the approved channels allowlist' }))
+    refused.claude.stdout.write(answer('apollo-1', { subtype: 'error', error: 'not on the approved channels allowlist' }))
     await settle()
     assert.equal(enables(refused.toClaude).length, 1)
     assert.match(refused.logs[0]!, /allowlist/)
@@ -90,7 +90,7 @@ test('gives up on a refusal, and after the last attempt', async () => {
     late.claude.stdout.write(answer('init-1'))
     for (let n = 1; n <= 3; n++) {
         await settle()
-        late.claude.stdout.write(answer(`voice-bridge-${n}`, notConnected))
+        late.claude.stdout.write(answer(`apollo-${n}`, notConnected))
     }
     await settle()
     assert.equal(enables(late.toClaude).length, 3)

@@ -11,12 +11,12 @@ test('reads the session and defaults the discovery path to the app data folder',
         projectDir: '/w/repo',
         claudePid: 77,
         startedAt: '2026-10-25T12:00:00.000Z',
-        discoveryPath: '/Users/me/Library/Application Support/dev.voicebridge.desktop/hub.json',
+        discoveryPath: '/Users/me/Library/Application Support/com.rickkoh.apollo/hub.json',
     })
 })
 
-test('VOICE_BRIDGE_DISCOVERY overrides the discovery path', () => {
-    const env = readEnv({ ...base, VOICE_BRIDGE_DISCOVERY: '/tmp/vb/hub.json' }, 1)
+test('APOLLO_DISCOVERY overrides the discovery path', () => {
+    const env = readEnv({ ...base, APOLLO_DISCOVERY: '/tmp/vb/hub.json' }, 1)
     assert.ok(!('error' in env))
     assert.equal(env.discoveryPath, '/tmp/vb/hub.json')
 })
@@ -34,6 +34,6 @@ test('falls back to PWD when CLAUDE_PROJECT_DIR is missing', () => {
 
 test('the host is a terminal unless the panel bridge says otherwise', () => {
     assert.equal(hostOf(base), 'terminal')
-    assert.equal(hostOf({ ...base, VOICE_BRIDGE_HOST: 'panel' }), 'panel')
-    assert.equal(hostOf({ ...base, VOICE_BRIDGE_HOST: 'other' }), 'terminal')
+    assert.equal(hostOf({ ...base, APOLLO_HOST: 'panel' }), 'panel')
+    assert.equal(hostOf({ ...base, APOLLO_HOST: 'other' }), 'terminal')
 })

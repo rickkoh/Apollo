@@ -322,8 +322,8 @@ mod tests {
             cli.calls(),
             [
                 format!("plugin marketplace add {root}"),
-                "plugin install voice@voice-bridge --scope user".into(),
-                "plugin disable voice@voice-bridge --scope user".into(),
+                "plugin install voice@apollo --scope user".into(),
+                "plugin disable voice@apollo --scope user".into(),
             ]
         );
     }
@@ -353,10 +353,10 @@ mod tests {
         assert_eq!(
             cli.calls(),
             [
-                "plugin marketplace remove voice-bridge".into(),
+                "plugin marketplace remove apollo".into(),
                 format!("plugin marketplace add {root}"),
-                "plugin install voice@voice-bridge --scope user".into(),
-                "plugin disable voice@voice-bridge --scope user".into(),
+                "plugin install voice@apollo --scope user".into(),
+                "plugin disable voice@apollo --scope user".into(),
             ]
         );
     }
@@ -379,9 +379,9 @@ mod tests {
         assert_eq!(
             cli.calls(),
             [
-                "plugin uninstall voice@voice-bridge --scope user",
-                "plugin install voice@voice-bridge --scope user",
-                "plugin disable voice@voice-bridge --scope user",
+                "plugin uninstall voice@apollo --scope user",
+                "plugin install voice@apollo --scope user",
+                "plugin disable voice@apollo --scope user",
             ]
         );
     }
@@ -397,7 +397,7 @@ mod tests {
         };
         assert_eq!(
             (step.as_str(), stderr.as_str()),
-            ("claude plugin install voice@voice-bridge --scope user", "boom")
+            ("claude plugin install voice@apollo --scope user", "boom")
         );
         assert!(!cli.calls().iter().any(|c| c.contains("disable")));
     }

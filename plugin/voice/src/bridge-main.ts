@@ -3,7 +3,7 @@ import { constants } from 'node:os'
 import { PLUGIN_SETTINGS, bridge } from './bridge.ts'
 
 // cv-panel runs this as `panel-bridge.js <claude binary> <args...>` for IDE panel sessions only.
-const log = (message: string) => process.stderr.write(`voice bridge: ${message}\n`)
+const log = (message: string) => process.stderr.write(`apollo: ${message}\n`)
 const [binary, ...args] = process.argv.slice(2)
 if (!binary) {
     log('usage: panel-bridge.js <claude binary> <args...>')
@@ -11,7 +11,7 @@ if (!binary) {
 }
 
 const claude = spawn(binary, [...args, '--settings', PLUGIN_SETTINGS], {
-    env: { ...process.env, VOICE_BRIDGE_HOST: 'panel' },
+    env: { ...process.env, APOLLO_HOST: 'panel' },
     stdio: ['pipe', 'pipe', 'inherit'],
 })
 bridge({ input: process.stdin, output: process.stdout }, claude, { log })

@@ -1,10 +1,10 @@
 import type { Readable, Writable } from 'node:stream'
 
 /** Enables the installed, user-disabled voice plugin for this one session. */
-export const PLUGIN_SETTINGS = '{"enabledPlugins":{"voice@voice-bridge":true}}'
+export const PLUGIN_SETTINGS = '{"enabledPlugins":{"voice@apollo":true}}'
 
 const SERVER = 'plugin:voice:voice'
-const PREFIX = 'voice-bridge-'
+const PREFIX = 'apollo-'
 
 export interface BridgeOptions {
     retryMs?: number

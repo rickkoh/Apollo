@@ -1,4 +1,4 @@
-# Voice Bridge
+# Apollo
 
 macOS menu-bar app: an always-on-top overlay sends Wispr Flow dictation to one chosen Claude Code session through a
 Claude Code channel and shows Claude's replies. `PLAN.md` is the design and the source of truth: read the relevant

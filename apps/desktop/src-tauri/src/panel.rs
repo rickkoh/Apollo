@@ -144,7 +144,7 @@ mod tests {
     fn launcher(dir: &tempfile::TempDir) -> PanelLauncher {
         PanelLauncher {
             bin_dir: dir.path().join("bin"),
-            bridge: PathBuf::from("/Apps/Voice Bridge.app/plugin/voice/dist/panel-bridge.js"),
+            bridge: PathBuf::from("/Apps/Apollo.app/plugin/voice/dist/panel-bridge.js"),
             discovery: dir.path().join("data/hub.json"),
             app_support: dir.path().join("Application Support"),
         }

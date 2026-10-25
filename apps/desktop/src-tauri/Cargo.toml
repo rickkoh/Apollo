@@ -1,11 +1,11 @@
 [package]
-name = "voice-bridge"
+name = "apollo"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
 [lib]
-name = "voice_bridge_lib"
+name = "apollo_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

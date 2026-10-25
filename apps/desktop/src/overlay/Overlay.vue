@@ -57,7 +57,7 @@ function describe(err: unknown): string {
             return 'That message is too long to send'
         case 'hub_down':
             hub.running.value = false
-            return "Voice Bridge isn't running its hub. Restart the app"
+            return "Apollo isn't running its hub. Restart the app"
         default:
             return e.message
     }

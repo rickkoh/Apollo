@@ -12,12 +12,12 @@ export const INSTRUCTIONS =
     'or two sentences on what you did or why you could not.'
 
 export const PANEL_INSTRUCTIONS =
-    'Messages from this voice channel are the user speaking to you from the Voice Bridge overlay, dictated while they ' +
+    'Messages from this voice channel are the user speaking to you from the Apollo overlay, dictated while they ' +
     'may be looking away from this chat, so expect transcription slips. Answer every one, small talk included, by ' +
     'calling this server\'s reply tool with one or two sentences on what you did or why you could not. Answer messages ' +
     'typed in this chat in the chat, as usual.'
 
-export const NOT_RUNNING = 'Voice Bridge is not running, so the user did not see this. Tell them in the terminal instead.'
+export const NOT_RUNNING = 'Apollo is not running, so the user did not see this. Tell them in the terminal instead.'
 
 const MAX_REPLY_CHARS = 16000
 
@@ -37,7 +37,7 @@ export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>,
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
         tools: [{
             name: 'reply',
-            description: 'Show a short reply to the user in the Voice Bridge overlay.',
+            description: 'Show a short reply to the user in the Apollo overlay.',
             inputSchema: {
                 type: 'object',
                 properties: { text: { type: 'string', maxLength: MAX_REPLY_CHARS } },

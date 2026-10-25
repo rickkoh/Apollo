@@ -42,7 +42,7 @@ async function install(): Promise<void> {
 
 const panelHint = computed(() => {
     if (!panel.value) return 'Checking…'
-    if (panel.value.foreign) return "A cv-panel that Voice Bridge didn't write is in the way"
+    if (panel.value.foreign) return "A cv-panel that Apollo didn't write is in the way"
     if (!panel.value.installed) return 'Not installed: click Install above'
     return panel.value.upToDate ? 'Installed' : 'Installed, a reinstall is due'
 })
@@ -54,7 +54,7 @@ function editorHint(editor: EditorPanel): string {
         case 'unset':
             return 'Add the line below to its settings.json (Preferences: Open User Settings (JSON))'
         case 'other':
-            return `Uses another wrapper (${editor.current}); to use Voice Bridge's, replace it with the line below`
+            return `Uses another wrapper (${editor.current}); to use Apollo's, replace it with the line below`
     }
 }
 
@@ -171,7 +171,7 @@ async function clearAll(): Promise<void> {
             </SettingRow>
             <p class="dim path"><code>{{ cli.status.value?.path }}</code></p>
             <p v-if="cli.status.value?.foreign" class="error-text">
-                A <code>{{ cli.status.value.command }}</code> that Voice Bridge didn't write is already there; remove or
+                A <code>{{ cli.status.value.command }}</code> that Apollo didn't write is already there; remove or
                 rename it to install.
             </p>
             <p v-if="cli.status.value && !cli.status.value.onPath" class="warn">

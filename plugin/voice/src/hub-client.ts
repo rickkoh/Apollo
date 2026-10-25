@@ -68,7 +68,7 @@ export class HubClient {
     }
 
     async reply(text: string): Promise<void> {
-        if (!this.#welcomed) throw new Error('not connected to Voice Bridge')
+        if (!this.#welcomed) throw new Error('not connected to Apollo')
         this.#send({ type: 'reply', text })
     }
 
@@ -115,7 +115,7 @@ export class HubClient {
     #markDisconnected(): void {
         if (!this.#welcomed) return
         this.#welcomed = false
-        log('disconnected from Voice Bridge')
+        log('disconnected from Apollo')
         this.#emit('disconnected')
     }
 
@@ -130,7 +130,7 @@ export class HubClient {
             case 'welcome':
                 this.#attempt = 0
                 this.#welcomed = true
-                log(`connected to Voice Bridge as "${frame.title}"`)
+                log(`connected to Apollo as "${frame.title}"`)
                 this.#emit('connected', frame.title)
                 break
             case 'deliver':

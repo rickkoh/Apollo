@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Voice Bridge",
-  "identifier": "dev.voicebridge.desktop",
+  "productName": "Apollo",
+  "identifier": "com.rickkoh.apollo",
   "build": {
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",

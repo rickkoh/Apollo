@@ -32,6 +32,5 @@ mod tests {
     fn the_dev_identifier_names_the_dev_channel() {
         assert_eq!(Channel::of("com.rickkoh.apollo.dev"), Channel::Dev);
         assert_eq!(Channel::of("com.rickkoh.apollo"), Channel::Stable);
-        assert_eq!(Channel::of("dev.voicebridge.desktop"), Channel::Stable);
     }
 }

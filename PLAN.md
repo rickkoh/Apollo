@@ -1,6 +1,6 @@
-# Voice Bridge — design
+# Apollo — design
 
-Voice Bridge (working name) is a macOS menu-bar app with an always-on-top overlay. The user dictates into the overlay
+Apollo (formerly Voice Bridge) is a macOS menu-bar app with an always-on-top overlay. The user dictates into the overlay
 with Wispr Flow; the text goes to one chosen Claude Code session through a Claude Code channel, and Claude's replies
 show in the overlay. A control panel manages sessions, history and settings.
 
@@ -28,7 +28,7 @@ Record every new decision and question here.
   shortcuts themselves come later.
 - **R10 No Remote Control.** Everything works with Remote Control switched off; the organization disables it.
 - **R11 Quality.** Designed at a low level, SOLID, no code smells, ready to extend with features, robustness and tests.
-- **R12 Home.** Lives in `~/Desktop/voice-bridge`; the user sets up git and a remote.
+- **R12 Home.** Lives in `~/Desktop/apollo`; the user sets up git and a remote.
 - **R13 No dialog.** Once the channel is approved, a session started with `cv` opens without Claude Code's
   development-channels dialog.
 - **R14 Any terminal.** Voice sessions run in any terminal, Cursor's integrated terminal included.
@@ -73,8 +73,8 @@ Record every new decision and question here.
 - **D20 The overlay shows over full-screen apps** through native window settings Tauri doesn't expose: the
   `FullScreenAuxiliary` collection behaviour and a window level above normal windows. Spike S3 decides between a
   regular window and a non-activating panel.
-- **D21 All app data lives in `~/Library/Application Support/dev.voicebridge.desktop/`** (layout in §8.1).
-- **D22 Bundle identifier `dev.voicebridge.desktop`;** changeable before the first signed build.
+- **D21 All app data lives in `~/Library/Application Support/com.rickkoh.apollo/`** (layout in §8.1).
+- **D22 (superseded by D51) Bundle identifier `dev.voicebridge.desktop`;** changeable before the first signed build.
 - **D23 The app keeps a standard Edit menu.** Wispr Flow pastes with ⌘V, and macOS routes ⌘V through the main menu.
 - **D24 Pinned stack: latest stable, not pre-release.** Tauri 2.12.x and its 2.x plugins (Tauri 3 is alpha), axum 0.8,
   rusqlite 0.41 (bundled), ts-rs 12, tokio 1.54, tokio-tungstenite 0.30, objc2-app-kit 0.3, Vue 3.5, vue-router 5,
@@ -173,7 +173,7 @@ Record every new decision and question here.
   the session's `statusUpdatedAt` counts as heard, so a missed busy phase never flags.
 - **D65 The shell reads `CLAUDE_CONFIG_DIR` from the login shell on a background thread** (`login_shell_var`, D42);
   activity reads as unknown until it answers, so a slow shell profile never delays startup.
-- **D66 Install keeps the plugin in line with this app:** it re-adds the `voice-bridge` marketplace when its path isn't
+- **D66 Install keeps the plugin in line with this app:** it re-adds the `apollo` marketplace when its path isn't
   this app's `<resource dir>/plugin`, reinstalls when the installed `dist/channel.js` or `.mcp.json` differ from the
   bundle's, and disables the plugin user-wide; each step runs only when needed, through a `PluginCli` port. Settings
   reads it through its own `plugin_status` command, since that runs `claude`.
@@ -184,7 +184,7 @@ Record every new decision and question here.
 - **D68 The panel bridge enables the channel with the SDK's `channel_enable` control request** (`enableChannel` in the
   Agent SDK; the extension never sends it) once claude has answered the extension's `initialize`, retrying while the
   server is still connecting. It adds `--settings` enabling the plugin for that session only, sets
-  `VOICE_BRIDGE_HOST=panel`, forwards everything else line by line, hides claude's answers to its own requests, passes
+  `APOLLO_HOST=panel`, forwards everything else line by line, hides claude's answers to its own requests, passes
   signals and the exit code through, and logs to stderr only, since stdout is the extension's transport.
 - **D69 Panel sessions get their own channel instructions:** dictated messages are answered with `reply`, typed chat
   messages in the chat. Terminal sessions keep D4's.
@@ -213,7 +213,7 @@ Record every new decision and question here.
 - **D77 The channel comes from the bundle identifier** (`Channel`, `.dev` suffix), and a debug build under the stable
   identifier refuses to start: `tauri dev` without the dev config would otherwise share the stable app's data and
   overwrite its `cv` and marketplace. Apollo Dev starts with `npm --prefix apps/desktop run app`.
-- **D78 Every launcher (`cv`, `cv-dev`, `cv-panel`) sets `VOICE_BRIDGE_DISCOVERY` to its app's `hub.json` unless it is
+- **D78 Every launcher (`cv`, `cv-dev`, `cv-panel`) sets `APOLLO_DISCOVERY` to its app's `hub.json` unless it is
   already set,** right after the marker, so a session reaches the app that installed its launcher and `hub-dev` can
   still be pointed at by hand.
 - **D79 Menus, the menu bar item and window titles take the app name from `productName`,** so Apollo Dev names itself
@@ -233,6 +233,9 @@ Record every new decision and question here.
   D71.
 - **D85 The repository is public, so the feed and the downloads need no credentials:** no deploy token, no Keychain
   item, no token rows in Settings. Replaces D57 and answers Q18 without S7.
+- **D87 The voice plugin keeps its name in the `apollo` marketplace** (`voice@apollo`, channel `plugin:voice@apollo`),
+  so the reply tool stays `mcp__plugin_voice_voice__reply`; D51's "plugin" rename covers its marketplace, its
+  description and its variables (`APOLLO_DISCOVERY`, `APOLLO_HOST`).
 - **D86 A release is cut from any clean checkout whose HEAD is `origin/main`** and pushes `HEAD:main` with its tag in
   one atomic push, so a worktree can release without moving the main checkout. The release commit is made and tagged
   before the build, so About's commit is the tagged one; a failure before the push drops both.
@@ -240,7 +243,7 @@ Record every new decision and question here.
 ## 3. Architecture
 
 ```
-                  ┌──────────────────────── Voice Bridge.app ────────────────────────┐
+                  ┌─────────────────────────── Apollo.app ────────────────────────────┐
  Wispr Flow ─paste─▶ overlay window (Vue) ─┐                                          │
                   │  control panel (Vue) ──┼─ Tauri commands/events ─▶ desktop shell ─┤
                   │                        │                          (windows, tray, │
@@ -288,7 +291,7 @@ Record every new decision and question here.
 ## 4. Repository layout
 
 ```
-voice-bridge/
+apollo/
   Cargo.toml                      workspace: crates/hub, apps/desktop/src-tauri
   rustfmt.toml
   shared/types/                   ts-rs output (committed), imported by the plugin and the UI
@@ -572,7 +575,7 @@ channel                        hub
 // env.ts
 export interface ChannelEnv { sessionId: string; projectDir: string; claudePid: number; discoveryPath: string }
 export function readEnv(env: NodeJS.ProcessEnv, ppid: number): ChannelEnv | { error: string }
-// discoveryPath = VOICE_BRIDGE_DISCOVERY ?? ~/Library/Application Support/dev.voicebridge.desktop/hub.json
+// discoveryPath = APOLLO_DISCOVERY ?? ~/Library/Application Support/com.rickkoh.apollo/hub.json
 
 // discovery.ts
 export interface Discovery { version: 1; port: number; token: string; pid: number }
@@ -606,7 +609,7 @@ export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>)
 - **`error` frame:** log it; `replaced` stops this client for good, the others retry with backoff.
 - **Ordering:** `delivered` is sent only after the notification is written, so `delivered` means "in the session's
   transport".
-- **`reply` tool while disconnected:** returns an MCP error result: "Voice Bridge is not running, so the user did not
+- **`reply` tool while disconnected:** returns an MCP error result: "Apollo is not running, so the user did not
   see this. Tell them in the terminal instead."
 - **stdout is the MCP transport.** Logs go to stderr only.
 - **No permission relay:** the channel never declares `claude/channel/permission`.
@@ -619,7 +622,7 @@ export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>)
   > text never reaches them. Messages from this voice channel are the user speaking to you, dictated while they
   > watch the screen, so expect transcription slips. Answer every one, small talk included, by calling reply with one
   > or two sentences on what you did or why you could not.
-- Tool `reply`: description "Show a short reply to the user in the Voice Bridge overlay."; input
+- Tool `reply`: description "Show a short reply to the user in the Apollo overlay."; input
   `{ text: string }`, max 16 000 characters.
 
 ### 7.5 Build
@@ -644,7 +647,7 @@ with `--channels` when the approval file holds our entry and the development fla
 ### 8.1 App data folder
 
 ```
-~/Library/Application Support/dev.voicebridge.desktop/
+~/Library/Application Support/com.rickkoh.apollo/
   hub.json          runtime discovery file; exists only while the app runs
   voice.db          SQLite (WAL): sessions, messages, hub state
   settings.json     preferences
@@ -763,7 +766,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 
 - **Menu bar item** (`tray.rs`): template icon (`icon_as_template(true)`), menu shown on left click:
   **Open Apollo**, **Show Overlay** / **Hide Overlay**, a disabled line with the current target, separator,
-  **Quit Voice Bridge**. The target line and the show/hide label update on `target-changed` and on visibility changes.
+  **Quit Apollo**. The target line and the show/hide label update on `target-changed` and on visibility changes.
 - **App menu** (`menu.rs`, D23): app menu (About, Quit) and the standard Edit menu (Undo, Redo, Cut, Copy, Paste,
   Select All). It is only visible while the panel is open, but its key equivalents work always.
 - **Dock** (`windows/panel.rs`): `ActivationPolicy::Accessory` at startup. Opening the panel switches to `Regular`,
@@ -820,7 +823,7 @@ commands so unlisted ones are denied.
 
 ### 9.9 `tauri.conf.json` essentials
 
-- `identifier: "dev.voicebridge.desktop"`, `productName: "Voice Bridge"`.
+- `identifier: "com.rickkoh.apollo"`, `productName: "Apollo"`.
 - `app.macOSPrivateApi: true`; `app.windows: []` (windows are built in code).
 - `app.security.csp`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost`.
 - `build.devUrl: http://localhost:1420`, `build.frontendDist: ../dist`, `beforeDevCommand: npm run dev`,
@@ -964,7 +967,7 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 | `too_large` | That message is too long to send |
 | Delivery failed | Not delivered: {detail} |
 | Not picked up (D64) | Claude hasn't picked this up (under the echo) |
-| Hub down | Voice Bridge isn't running its hub. Restart the app |
+| Hub down | Apollo isn't running its hub. Restart the app |
 
 ### 10.8 Control panel
 
@@ -1052,7 +1055,7 @@ Prerequisites: Xcode command-line tools; Rust from Homebrew's `rustup` (add `/op
 | Lint | `cargo fmt --check && cargo clippy --workspace -- -D warnings` |
 | Headless hub | `cargo run -p hub --bin hub-dev -- --data /tmp/vb --discovery /tmp/vb/hub.json` |
 | Channel | `npm --prefix plugin/voice run build`, `… run test`, `… run typecheck` |
-| Dev voice session | `VOICE_BRIDGE_DISCOVERY=/tmp/vb/hub.json cv-dev` in a terminal |
+| Dev voice session | `APOLLO_DISCOVERY=/tmp/vb/hub.json cv-dev` in a terminal |
 | App (Apollo Dev) | `npm --prefix apps/desktop run app` |
 | UI type check | `npm --prefix apps/desktop run typecheck` |
 
@@ -1244,7 +1247,7 @@ sleep. Fail: the hooks fallback in §22.4.
 
 ## 20. Name and logo
 
-- **Name:** Voice Bridge for now. Alternatives to consider before a first release: Murmur, Parley, Cue, Hark.
+- **Name:** Apollo (D51); the terminal command stays `cv`.
 - **Logo:** parked (Q14). Needs a full-colour app icon (`.icns`) and a monochrome menu-bar template (18 pt, PDF or
   @1x/@2x PNG).
 
@@ -1376,10 +1379,10 @@ user-wide, and `cv` enables it for its own session with `--settings`, so `--chan
 `inline` (`--plugin-dir` with `plugin:voice@inline` and an `inline` entry) stays the fallback if per-session enabling
 ever breaks; it rests on Claude Code's internal marketplace name.
 
-**Approval file (D45):** `/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json`, compact:
+**Approval file (D45):** `/Library/Application Support/ClaudeCode/managed-settings.d/apollo.json`, compact:
 
 ```json
-{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"voice"}]}
+{"allowedChannelPlugins":[{"marketplace":"apollo","plugin":"voice"}]}
 ```
 
 - The user writes it once with the `sudo` command Settings shows with Copy (`CliStatus.approvalCommand`, built in
@@ -1395,11 +1398,11 @@ ever breaks; it rests on Claude Code's internal marketplace name.
 
 ```sh
 #!/bin/sh
-# voice-bridge launcher
-if grep -qF '{"marketplace":"voice-bridge","plugin":"voice"}' '/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json' 2>/dev/null; then
-    exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --channels plugin:voice@voice-bridge "$@"
+# apollo launcher
+if grep -qF '{"marketplace":"apollo","plugin":"voice"}' '/Library/Application Support/ClaudeCode/managed-settings.d/apollo.json' 2>/dev/null; then
+    exec claude --settings '{"enabledPlugins":{"voice@apollo":true}}' --channels plugin:voice@apollo "$@"
 fi
-exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --dangerously-load-development-channels plugin:voice@voice-bridge "$@"
+exec claude --settings '{"enabledPlugins":{"voice@apollo":true}}' --dangerously-load-development-channels plugin:voice@apollo "$@"
 ```
 
 - Never worse than before: without our entry the dialog comes back and voice still works.
@@ -1411,11 +1414,11 @@ exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --danger
 
 **Marketplace and installer (D66):**
 
-- `plugin/.claude-plugin/marketplace.json`: `{"name": "voice-bridge", "owner": {"name": "Voice Bridge"}, "plugins":
+- `plugin/.claude-plugin/marketplace.json`: `{"name": "apollo", "owner": {"name": "Apollo"}, "plugins":
   [{"name": "voice", "source": "./voice"}]}`, in `bundle.resources`, so the marketplace root is `<resource dir>/plugin`
   (`target/debug/plugin` under `tauri dev`). `claude plugin validate plugin` checks it.
 - Install runs, through the login-shell `claude` (D42), only what is needed: `plugin marketplace remove` and `add` when
-  the marketplace path isn't this app's; `plugin install voice@voice-bridge --scope user` when missing, after an
+  the marketplace path isn't this app's; `plugin install voice@apollo --scope user` when missing, after an
   `uninstall` when the installed `dist/channel.js` or `.mcp.json` differ from the bundle's; `plugin disable` when
   enabled. Then it writes `cv`. A failing step returns UI code `plugin_install` with the CLI's output.
 - The plugin runs from the marketplace folder (§22.1), so an app update reaches the next session; the content check
@@ -1555,7 +1558,7 @@ extension never sends. The panel bridge sends it on the extension's behalf (D67,
 
 ```sh
 #!/bin/sh
-# voice-bridge launcher
+# apollo launcher
 case " $* " in
     *" --input-format "*|*" --input-format="*) exec node '<resource dir>/plugin/voice/dist/panel-bridge.js' "$@" ;;
 esac
@@ -1564,9 +1567,9 @@ exec "$@"
 
 - `panel-bridge.js` is the plugin's second bundle (`src/bridge.ts`, entry `src/bridge-main.ts`), shipped beside
   `channel.js`.
-- The bridge starts `<binary> <args> --settings '{"enabledPlugins":{"voice@voice-bridge":true}}'` with
-  `VOICE_BRIDGE_HOST=panel`. It forwards the extension's lines to claude and claude's lines to the extension. After
-  claude answers the extension's `initialize`, it sends `channel_enable` (`request_id` `voice-bridge-<n>`), retrying
+- The bridge starts `<binary> <args> --settings '{"enabledPlugins":{"voice@apollo":true}}'` with
+  `APOLLO_HOST=panel`. It forwards the extension's lines to claude and claude's lines to the extension. After
+  claude answers the extension's `initialize`, it sends `channel_enable` (`request_id` `apollo-<n>`), retrying
   every second while the server isn't connected, up to 30 times, and drops claude's answers to those requests. It
   passes stderr through, forwards SIGTERM, SIGINT and SIGHUP, and exits with claude's code.
 - A bridge fault costs voice in a panel, never the panel: nothing of ours is sent before the extension's own first
@@ -1583,7 +1586,7 @@ exec "$@"
 
 ### 24.4 Panel instructions (D69)
 
-> Messages from this voice channel are the user speaking to you from the Voice Bridge overlay, dictated while they
+> Messages from this voice channel are the user speaking to you from the Apollo overlay, dictated while they
 > may be looking away from this chat, so expect transcription slips. Answer every one, small talk included, by calling
 > this server's reply tool with one or two sentences on what you did or why you could not. Answer messages typed in
 > this chat in the chat, as usual.

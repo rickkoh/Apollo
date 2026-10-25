@@ -42,7 +42,7 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             .targets([
                 Target::new(TargetKind::Folder {
                     path: data.join("logs"),
-                    file_name: Some("voice-bridge".into()),
+                    file_name: Some("apollo".into()),
                 }),
                 Target::new(TargetKind::Stderr),
             ])
@@ -185,7 +185,7 @@ pub fn run() {
             commands::set_open_at_login,
         ])
         .build(context)
-        .expect("error while building Voice Bridge")
+        .expect("error while building Apollo")
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 stop(app);

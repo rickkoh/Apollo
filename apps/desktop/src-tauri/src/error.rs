@@ -39,10 +39,7 @@ impl UiError {
     }
 
     pub fn hub_down() -> Self {
-        Self::new(
-            UiErrorCode::HubDown,
-            "Voice Bridge isn't running its hub. Restart the app",
-        )
+        Self::new(UiErrorCode::HubDown, "Apollo isn't running its hub. Restart the app")
     }
 
     pub fn internal(err: impl std::fmt::Display) -> Self {

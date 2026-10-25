@@ -77,7 +77,7 @@ export class Channel {
     constructor(sessionId: string, cwd: string, discoveryPath: string) {
         this.sessionId = sessionId
         this.proc = spawn('node', [CHANNEL], {
-            env: { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId, CLAUDE_PROJECT_DIR: cwd, VOICE_BRIDGE_DISCOVERY: discoveryPath },
+            env: { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId, CLAUDE_PROJECT_DIR: cwd, APOLLO_DISCOVERY: discoveryPath },
         })
         createInterface({ input: this.proc.stdout }).on('line', line => this.messages.push(JSON.parse(line)))
     }

@@ -8,13 +8,13 @@ export interface ChannelEnv {
     discoveryPath: string
 }
 
-/** Where the session runs: a terminal (`cv`) or an IDE panel, whose bridge sets `VOICE_BRIDGE_HOST=panel`. */
+/** Where the session runs: a terminal (`cv`) or an IDE panel, whose bridge sets `APOLLO_HOST=panel`. */
 export type Host = 'terminal' | 'panel'
 
-const APP_DATA = ['Library', 'Application Support', 'dev.voicebridge.desktop']
+const APP_DATA = ['Library', 'Application Support', 'com.rickkoh.apollo']
 
 export function hostOf(env: NodeJS.ProcessEnv): Host {
-    return env.VOICE_BRIDGE_HOST === 'panel' ? 'panel' : 'terminal'
+    return env.APOLLO_HOST === 'panel' ? 'panel' : 'terminal'
 }
 
 export function readEnv(env: NodeJS.ProcessEnv, ppid: number, now = new Date()): ChannelEnv | { error: string } {
@@ -23,7 +23,7 @@ export function readEnv(env: NodeJS.ProcessEnv, ppid: number, now = new Date()):
     const projectDir = env.CLAUDE_PROJECT_DIR ?? env.PWD
     if (!projectDir) return { error: 'neither CLAUDE_PROJECT_DIR nor PWD is set' }
     const home = env.HOME
-    const discoveryPath = env.VOICE_BRIDGE_DISCOVERY ?? (home ? join(home, ...APP_DATA, 'hub.json') : undefined)
+    const discoveryPath = env.APOLLO_DISCOVERY ?? (home ? join(home, ...APP_DATA, 'hub.json') : undefined)
     if (!discoveryPath) return { error: 'HOME is not set, so the hub discovery file cannot be found' }
     return { sessionId, projectDir, claudePid: ppid, startedAt: now.toISOString(), discoveryPath }
 }

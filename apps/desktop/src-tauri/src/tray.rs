@@ -20,11 +20,11 @@ struct TrayItems {
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, OPEN_PANEL, "Open Apollo", true, None::<&str>)?;
+    let name = &app.package_info().name;
+    let open = MenuItem::with_id(app, OPEN_PANEL, format!("Open {name}"), true, None::<&str>)?;
     let toggle = MenuItem::with_id(app, TOGGLE_OVERLAY, "Show Overlay", true, None::<&str>)?;
     let target = MenuItem::new(app, "Target: none", false, None::<&str>)?;
     let update = MenuItem::with_id(app, UPDATE, "Update", true, None::<&str>)?;
-    let name = &app.package_info().name;
     let quit = MenuItem::with_id(app, QUIT, format!("Quit {name}"), true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(app, &[&open, &toggle, &target, &PredefinedMenuItem::separator(app)?])?;
     if cfg!(debug_assertions) {

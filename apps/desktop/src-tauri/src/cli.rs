@@ -10,16 +10,16 @@ use serde::Serialize;
 use serde_json::Value;
 use ts_rs::TS;
 
-pub const MARKER: &str = "# voice-bridge launcher";
+pub const MARKER: &str = "# apollo launcher";
 /// The managed-settings drop-in that approves the voice channel (D45); the user writes it once with `sudo`.
-pub const APPROVAL_PATH: &str = "/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json";
-pub const MARKETPLACE: &str = "voice-bridge";
-pub const PLUGIN_ID: &str = "voice@voice-bridge";
-const CHANNEL: &str = "plugin:voice@voice-bridge";
+pub const APPROVAL_PATH: &str = "/Library/Application Support/ClaudeCode/managed-settings.d/apollo.json";
+pub const MARKETPLACE: &str = "apollo";
+pub const PLUGIN_ID: &str = "voice@apollo";
+const CHANNEL: &str = "plugin:voice@apollo";
 /// Our `allowedChannelPlugins` entry exactly as the approval command writes it; the launcher greps for this text.
-const APPROVAL_ENTRY: &str = r#"{"marketplace":"voice-bridge","plugin":"voice"}"#;
+const APPROVAL_ENTRY: &str = r#"{"marketplace":"apollo","plugin":"voice"}"#;
 /// The variable every launcher sets to its app's discovery file, unless it is already set (D52).
-pub const DISCOVERY_VAR: &str = "VOICE_BRIDGE_DISCOVERY";
+pub const DISCOVERY_VAR: &str = "APOLLO_DISCOVERY";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "snake_case")]
@@ -56,7 +56,7 @@ pub struct CliStatus {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
-    #[error("{0} already exists and wasn't written by Voice Bridge")]
+    #[error("{0} already exists and wasn't written by Apollo")]
     Conflict(String),
     #[error("cannot write the launcher: {0}")]
     Io(#[from] std::io::Error),
@@ -195,7 +195,7 @@ impl OurScript {
         let dir = self.target.parent().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
         let name = self.target.file_name().unwrap_or_default().to_string_lossy();
-        let tmp = dir.join(format!(".{name}.voice-bridge.tmp"));
+        let tmp = dir.join(format!(".{name}.apollo.tmp"));
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -257,7 +257,7 @@ pub fn working_copy_plugin() -> PathBuf {
 
 /// `name` as the user's login shell sets it; a GUI app's own environment lacks what shell profiles add.
 pub fn login_shell_var(name: &str) -> Option<std::ffi::OsString> {
-    const TAG: &str = "__VOICE_BRIDGE_VAR__";
+    const TAG: &str = "__APOLLO_VAR__";
     let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/zsh".into());
     let output = std::process::Command::new(shell)
         .args(["-ilc", &format!("printf '{TAG}%s' \"${name}\"")])
@@ -288,7 +288,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let launcher = Launcher {
             bin_dir: dir.path().join("bin"),
-            approval_path: dir.path().join("ClaudeCode/managed-settings.d/voice-bridge.json"),
+            approval_path: dir.path().join("ClaudeCode/managed-settings.d/apollo.json"),
             discovery: dir.path().join("data/hub.json"),
             route,
         };
@@ -343,9 +343,9 @@ mod tests {
     fn argv(route: &str) -> Vec<String> {
         [
             "--settings",
-            r#"{"enabledPlugins":{"voice@voice-bridge":true}}"#,
+            r#"{"enabledPlugins":{"voice@apollo":true}}"#,
             route,
-            "plugin:voice@voice-bridge",
+            "plugin:voice@apollo",
             "--resume",
             "it's",
         ]
@@ -357,11 +357,11 @@ mod tests {
     fn the_script_carries_the_marker_and_quoted_paths() {
         let text = script(
             &Route::Installed,
-            Path::new("/a/it's here/voice-bridge.json"),
+            Path::new("/a/it's here/apollo.json"),
             Path::new("/d/it's/hub.json"),
         );
-        assert!(text.starts_with("#!/bin/sh\n# voice-bridge launcher\n"));
-        assert!(text.contains(r"'/a/it'\''s here/voice-bridge.json'"));
+        assert!(text.starts_with("#!/bin/sh\n# apollo launcher\n"));
+        assert!(text.contains(r"'/a/it'\''s here/apollo.json'"));
         assert!(text.contains(r"'/d/it'\''s/hub.json'"));
     }
 
@@ -417,9 +417,9 @@ mod tests {
         assert_eq!(f.approval(), ApprovalState::Missing);
         f.approve("{ not json");
         assert_eq!(f.approval(), ApprovalState::Unreadable);
-        f.approve(r#"{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"other"}]}"#);
+        f.approve(r#"{"allowedChannelPlugins":[{"marketplace":"apollo","plugin":"other"}]}"#);
         assert_eq!(f.approval(), ApprovalState::WrongEntry);
-        f.approve(r#"{ "allowedChannelPlugins": [{ "marketplace": "voice-bridge", "plugin": "voice" }] }"#);
+        f.approve(r#"{ "allowedChannelPlugins": [{ "marketplace": "apollo", "plugin": "voice" }] }"#);
         assert_eq!(
             f.approval(),
             ApprovalState::WrongEntry,
@@ -429,7 +429,7 @@ mod tests {
         assert_eq!(f.approval(), ApprovalState::Approved);
         f.managed(r#"{"allowedChannelPlugins":[{"marketplace":"acme","plugin":"chat"}]}"#);
         assert_eq!(f.approval(), ApprovalState::Conflict);
-        f.managed(r#"{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"voice"}]}"#);
+        f.managed(r#"{"allowedChannelPlugins":[{"marketplace":"apollo","plugin":"voice"}]}"#);
         assert_eq!(f.approval(), ApprovalState::Approved);
         f.managed(r#"{"permissions":{}}"#);
         assert_eq!(f.approval(), ApprovalState::Approved);
@@ -441,8 +441,8 @@ mod tests {
         assert_eq!(
             command,
             "sudo mkdir -p '/Library/Application Support/ClaudeCode/managed-settings.d' && echo \
-             '{\"allowedChannelPlugins\":[{\"marketplace\":\"voice-bridge\",\"plugin\":\"voice\"}]}' | sudo tee \
-             '/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json' > /dev/null"
+             '{\"allowedChannelPlugins\":[{\"marketplace\":\"apollo\",\"plugin\":\"voice\"}]}' | sudo tee \
+             '/Library/Application Support/ClaudeCode/managed-settings.d/apollo.json' > /dev/null"
         );
     }
 
