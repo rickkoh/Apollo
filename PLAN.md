@@ -801,7 +801,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `recent_messages` | `limit` | `Message[]` | panel |
 | `clear_history` | | `()` | panel |
 | `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |
-| `about` | | `AboutInfo { version, channel, commit, dataDir }` | both |
+| `about` | | `AboutInfo { version, channel, command, commit, dataDir }` | both |
 | `update_status` | | `UpdateStatus \| null` (null in Apollo Dev) | panel |
 | `check_for_updates` / `install_update` | | `UpdateStatus` / `()` (relaunches) | panel |
 | `save_deploy_token` | `token?` | `UpdateStatus` | panel |

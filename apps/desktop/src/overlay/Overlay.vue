@@ -21,7 +21,11 @@ const input = ref<InstanceType<typeof InputIsland> | null>(null)
 const pickerOpen = ref(false)
 const delivered = ref(false)
 const dev = ref(false)
-api.about().then(info => (dev.value = info.channel === 'dev'))
+const command = ref('cv')
+api.about().then(info => {
+    dev.value = info.channel === 'dev'
+    command.value = info.command
+})
 
 const hub = useHub()
 const { sessions } = useSessions()
@@ -101,6 +105,7 @@ function openPanel(): void {
             v-if="pickerOpen"
             class="picker"
             :sessions="sessions"
+            :command="command"
             :target-id="target?.id ?? null"
             @select="choose"
             @close="pickerOpen = false"
@@ -120,6 +125,7 @@ function openPanel(): void {
             :picker-open="pickerOpen"
             :delivered="delivered"
             :dev="dev"
+            :command="command"
             @send="send"
             @toggle-picker="pickerOpen = !pickerOpen"
         />

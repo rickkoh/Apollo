@@ -182,6 +182,8 @@ pub async fn plugin_status(state: State<'_, AppState>) -> CommandResult<PluginSt
 pub struct AboutInfo {
     pub version: String,
     pub channel: Channel,
+    /// The launcher this app installs: `cv`, or `cv-dev` for Apollo Dev.
+    pub command: String,
     pub commit: String,
     pub data_dir: String,
 }
@@ -191,6 +193,7 @@ pub fn about(app: AppHandle, state: State<'_, AppState>) -> AboutInfo {
     AboutInfo {
         version: app.package_info().version.to_string(),
         channel: state.channel,
+        command: launcher(&state).route.command().into(),
         commit: env!("GIT_COMMIT").into(),
         data_dir: state.paths.data.to_string_lossy().into_owned(),
     }

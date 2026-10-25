@@ -88,7 +88,7 @@ pub enum Route {
 }
 
 impl Route {
-    fn command(&self) -> &'static str {
+    pub fn command(&self) -> &'static str {
         match self {
             Route::Installed => "cv",
             Route::WorkingCopy { .. } => "cv-dev",

@@ -69,7 +69,7 @@ async function copyCommand(): Promise<void> {
         <button class="button" type="button" @click="copyCommand">{{ copied ? 'Copied' : 'Copy' }}</button>
     </div>
     <div v-else class="command">
-        <span class="dim">Start a session with <code>cv</code> in any terminal, Cursor's included.</span>
+        <span class="dim">Start a session with <code>{{ cli.status.value?.command ?? 'cv' }}</code> in any terminal, Cursor's included.</span>
         <button class="button" type="button" :disabled="cli.busy.value" @click="cli.install">Install</button>
     </div>
     <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>

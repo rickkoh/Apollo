@@ -4,7 +4,7 @@ import StatusDot from '../../shared/components/StatusDot.vue'
 import { clock, withinHours } from '../../shared/format'
 import type { SessionId, SessionView } from '../../shared/types'
 
-const props = defineProps<{ sessions: SessionView[]; targetId: SessionId | null }>()
+const props = defineProps<{ sessions: SessionView[]; targetId: SessionId | null; command: string }>()
 const emit = defineEmits<{ select: [id: SessionId]; close: [] }>()
 
 const ENDED_WINDOW_HOURS = 24
@@ -22,7 +22,7 @@ onScopeDispose(() => document.removeEventListener('keydown', onKey))
 
 <template>
     <ul class="island" role="listbox" aria-label="Sessions">
-        <li v-if="rows.length === 0" class="empty">Start a session with <code>cv</code> in any terminal, Cursor's included</li>
+        <li v-if="rows.length === 0" class="empty">Start a session with <code>{{ props.command }}</code> in any terminal, Cursor's included</li>
         <li v-for="s in rows" :key="s.id" role="option" :aria-selected="s.id === props.targetId" :aria-disabled="!s.live">
             <button type="button" :disabled="!s.live" :title="s.cwd" @click="emit('select', s.id)">
                 <StatusDot :state="s.live ? 'live' : 'offline'" />

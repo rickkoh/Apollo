@@ -10,6 +10,8 @@ import type { SessionId, SessionView } from '../../shared/types'
 const router = useRouter()
 const { sessions } = useSessions()
 const rows = computed(() => [...sessions.value].sort((a, b) => Number(b.live) - Number(a.live)))
+const command = ref('cv')
+api.about().then(info => (command.value = info.command))
 
 const editing = ref<SessionId | null>(null)
 const draft = ref('')
@@ -51,7 +53,7 @@ function forget(id: SessionId): Promise<void> {
 <template>
     <h1>Sessions</h1>
     <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="rows.length === 0" class="dim">Start a session with <code>cv</code> in any terminal, Cursor's included.</p>
+    <p v-if="rows.length === 0" class="dim">Start a session with <code>{{ command }}</code> in any terminal, Cursor's included.</p>
     <table v-else>
         <thead>
             <tr>
