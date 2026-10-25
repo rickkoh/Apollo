@@ -34,7 +34,8 @@
       "../../../plugin/.claude-plugin/marketplace.json": "plugin/.claude-plugin/marketplace.json",
       "../../../plugin/voice/.claude-plugin/plugin.json": "plugin/voice/.claude-plugin/plugin.json",
       "../../../plugin/voice/.mcp.json": "plugin/voice/.mcp.json",
-      "../../../plugin/voice/dist/channel.js": "plugin/voice/dist/channel.js"
+      "../../../plugin/voice/dist/channel.js": "plugin/voice/dist/channel.js",
+      "../../../plugin/voice/dist/panel-bridge.js": "plugin/voice/dist/panel-bridge.js"
     }
   }
 }

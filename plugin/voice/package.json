@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/channel.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/channel.js && esbuild src/bridge-main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/panel-bridge.js",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/unit/*.test.ts\"",
     "test:e2e": "npm run build && cargo build -p hub --bin hub-dev && node --test --test-concurrency=1 \"test/e2e/*.test.ts\""

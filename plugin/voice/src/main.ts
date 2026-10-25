@@ -1,18 +1,19 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { readDiscovery } from './discovery.ts'
-import { readEnv } from './env.ts'
+import { hostOf, readEnv } from './env.ts'
 import { HubClient } from './hub-client.ts'
 import { log } from './log.ts'
 import { channelNotifier, createChannelServer, forwardDeliveries } from './mcp.ts'
 
 const env = readEnv(process.env, process.ppid)
+const host = hostOf(process.env)
 
 if ('error' in env) {
     log(`${env.error}; staying idle`)
-    await createChannelServer({ connected: false, reply: async () => {} }).connect(new StdioServerTransport())
+    await createChannelServer({ connected: false, reply: async () => {} }, host).connect(new StdioServerTransport())
 } else {
     const hub = new HubClient(env, () => readDiscovery(env.discoveryPath))
-    const server = createChannelServer(hub)
+    const server = createChannelServer(hub, host)
     forwardDeliveries(hub, channelNotifier(server))
     await server.connect(new StdioServerTransport())
     hub.start()

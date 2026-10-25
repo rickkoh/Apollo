@@ -8,7 +8,14 @@ export interface ChannelEnv {
     discoveryPath: string
 }
 
+/** Where the session runs: a terminal (`cv`) or an IDE panel, whose bridge sets `VOICE_BRIDGE_HOST=panel`. */
+export type Host = 'terminal' | 'panel'
+
 const APP_DATA = ['Library', 'Application Support', 'dev.voicebridge.desktop']
+
+export function hostOf(env: NodeJS.ProcessEnv): Host {
+    return env.VOICE_BRIDGE_HOST === 'panel' ? 'panel' : 'terminal'
+}
 
 export function readEnv(env: NodeJS.ProcessEnv, ppid: number, now = new Date()): ChannelEnv | { error: string } {
     const sessionId = env.CLAUDE_CODE_SESSION_ID

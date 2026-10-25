@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import type { Host } from '../../src/env.ts'
 import type { HubClientEvents } from '../../src/hub-client.ts'
-import { INSTRUCTIONS, NOT_RUNNING, createChannelServer, forwardDeliveries } from '../../src/mcp.ts'
+import { INSTRUCTIONS, NOT_RUNNING, PANEL_INSTRUCTIONS, createChannelServer, forwardDeliveries } from '../../src/mcp.ts'
 
-async function connect(hub: { connected: boolean; reply: (text: string) => Promise<void> }) {
-    const server = createChannelServer(hub)
+async function connect(hub: { connected: boolean; reply: (text: string) => Promise<void> }, host: Host = 'terminal') {
+    const server = createChannelServer(hub, host)
     const client = new Client({ name: 'test', version: '0' })
     const [a, b] = InMemoryTransport.createLinkedPair()
     await Promise.all([server.connect(a), client.connect(b)])
@@ -34,6 +35,14 @@ test('the server, plugin.json and package.json carry one version', async () => {
     const version = (file: string) => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8')).version
     assert.equal(client.getServerVersion()?.version, version('../../.claude-plugin/plugin.json'))
     assert.equal(client.getServerVersion()?.version, version('../../package.json'))
+})
+
+test('a panel session is told to answer dictation with reply and typed messages in the chat', async () => {
+    const client = await connect({ connected: true, reply: async () => {} }, 'panel')
+    const instructions = client.getInstructions() ?? ''
+    assert.equal(instructions, PANEL_INSTRUCTIONS)
+    assert.ok(!instructions.includes('plain text never reaches'))
+    assert.ok(instructions.includes('typed in this chat in the chat'))
 })
 
 test('reply forwards to the hub', async () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readEnv } from '../../src/env.ts'
+import { hostOf, readEnv } from '../../src/env.ts'
 
 const base = { CLAUDE_CODE_SESSION_ID: 'abc', CLAUDE_PROJECT_DIR: '/w/repo', HOME: '/Users/me' }
 
@@ -30,4 +30,10 @@ test('falls back to PWD when CLAUDE_PROJECT_DIR is missing', () => {
     const env = readEnv({ CLAUDE_CODE_SESSION_ID: 'a', PWD: '/p', HOME: '/h' }, 1)
     assert.ok(!('error' in env))
     assert.equal(env.projectDir, '/p')
+})
+
+test('the host is a terminal unless the panel bridge says otherwise', () => {
+    assert.equal(hostOf(base), 'terminal')
+    assert.equal(hostOf({ ...base, VOICE_BRIDGE_HOST: 'panel' }), 'panel')
+    assert.equal(hostOf({ ...base, VOICE_BRIDGE_HOST: 'other' }), 'terminal')
 })

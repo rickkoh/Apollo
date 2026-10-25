@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { Host } from './env.ts'
 import type { HubClient } from './hub-client.ts'
 
 export const INSTRUCTIONS =
@@ -8,6 +9,12 @@ export const INSTRUCTIONS =
     'text never reaches them. Messages from this voice channel are the user speaking to you, dictated while they ' +
     'watch the screen, so expect transcription slips. Answer every one, small talk included, by calling reply with one ' +
     'or two sentences on what you did or why you could not.'
+
+export const PANEL_INSTRUCTIONS =
+    'Messages from this voice channel are the user speaking to you from the Voice Bridge overlay, dictated while they ' +
+    'may be looking away from this chat, so expect transcription slips. Answer every one, small talk included, by ' +
+    'calling this server\'s reply tool with one or two sentences on what you did or why you could not. Answer messages ' +
+    'typed in this chat in the chat, as usual.'
 
 export const NOT_RUNNING = 'Voice Bridge is not running, so the user did not see this. Tell them in the terminal instead.'
 
@@ -17,10 +24,13 @@ function result(text: string, isError = false): CallToolResult {
     return { content: [{ type: 'text', text }], isError }
 }
 
-export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>): Server {
+export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>, host: Host = 'terminal'): Server {
     const server = new Server(
         { name: 'voice', version: '0.1.0' },
-        { capabilities: { experimental: { 'claude/channel': {} }, tools: {} }, instructions: INSTRUCTIONS },
+        {
+            capabilities: { experimental: { 'claude/channel': {} }, tools: {} },
+            instructions: host === 'panel' ? PANEL_INSTRUCTIONS : INSTRUCTIONS,
+        },
     )
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
