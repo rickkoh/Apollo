@@ -36,11 +36,18 @@ const statusText = computed(() => {
 <style scoped>
 .row {
     display: grid;
-    grid-template-columns: 48px 150px 1fr auto;
+    grid-template-columns: 64px 150px 1fr auto;
     gap: 12px;
     align-items: baseline;
-    padding: 8px 0;
+    padding: 12px 0;
     border-bottom: 1px solid var(--island-border);
+}
+.row:first-child {
+    padding-top: 0;
+}
+.row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
 }
 .time,
 .who {
@@ -51,6 +58,7 @@ const statusText = computed(() => {
     text-overflow: ellipsis;
 }
 .text {
+    line-height: 1.45;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }

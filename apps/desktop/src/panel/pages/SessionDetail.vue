@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import * as api from '../../shared/api'
+import Icon from '../../shared/components/Icon.vue'
 import StatusDot from '../../shared/components/StatusDot.vue'
 import { useSessions } from '../../shared/composables/useSessions'
 import MessageRow from '../components/MessageRow.vue'
@@ -71,7 +72,7 @@ async function onScroll(): Promise<void> {
 
 <template>
     <div class="detail">
-        <RouterLink to="/sessions" class="back">‹ Sessions</RouterLink>
+        <RouterLink to="/sessions" class="back"><Icon name="back" :size="14" />Sessions</RouterLink>
         <h1>
             <StatusDot :state="session?.live ? 'live' : 'offline'" />
             {{ session?.title ?? props.id }}
@@ -90,31 +91,40 @@ async function onScroll(): Promise<void> {
 .detail {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 84px);
+    height: 100%;
 }
 .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
     color: var(--text-dim);
     text-decoration: none;
     font-size: 13px;
 }
+.back:hover {
+    color: var(--text);
+}
 h1 {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 8px 0 2px;
+    gap: 12px;
+    margin: 12px 0 4px;
 }
 .folder {
-    margin: 0 0 16px;
+    margin: 0 0 20px;
 }
 .timeline {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 0 16px;
+    padding: 16px 20px;
     background: var(--card-bg);
     border: 1px solid var(--island-border);
     border-radius: var(--radius-card);
 }
 .edge {
+    margin: 0 0 12px;
     text-align: center;
     font-size: 12px;
 }

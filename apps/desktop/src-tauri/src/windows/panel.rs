@@ -1,6 +1,6 @@
 use tauri::{
-    ActivationPolicy, AppHandle, Emitter, Manager, TitleBarStyle, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    WindowEvent,
+    ActivationPolicy, AppHandle, Emitter, LogicalPosition, Manager, TitleBarStyle, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 
 pub const LABEL: &str = "panel";
@@ -12,6 +12,8 @@ fn create(app: &AppHandle, route: Option<&str>) -> tauri::Result<WebviewWindow> 
         .title(&app.package_info().name)
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
+        // centres the window buttons in the panel's 44 px title strip
+        .traffic_light_position(LogicalPosition::new(16.0, 24.0))
         .inner_size(960.0, 640.0)
         .min_inner_size(760.0, 520.0)
         .center()

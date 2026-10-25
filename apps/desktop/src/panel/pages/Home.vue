@@ -83,12 +83,14 @@ async function copyCommand(): Promise<void> {
     <p v-else-if="groups.length === 0" class="dim">Nothing yet. Messages you dictate and Claude's replies show up here.</p>
     <section v-for="group in groups" :key="group.day">
         <h3 class="day">{{ group.day }}</h3>
-        <MessageRow
-            v-for="m in group.messages"
-            :key="m.id"
-            :message="m"
-            :session-title="titles.get(m.session) ?? m.session.slice(0, 8)"
-        />
+        <Card>
+            <MessageRow
+                v-for="m in group.messages"
+                :key="m.id"
+                :message="m"
+                :session-title="titles.get(m.session) ?? m.session.slice(0, 8)"
+            />
+        </Card>
     </section>
 </template>
 
@@ -102,12 +104,14 @@ async function copyCommand(): Promise<void> {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 20px;
+    min-height: 28px;
+    font-size: 22px;
     font-weight: 600;
 }
 .target {
     flex-direction: column;
     align-items: flex-start;
+    justify-content: center;
     font-size: 16px;
     overflow-wrap: anywhere;
 }
@@ -120,15 +124,16 @@ async function copyCommand(): Promise<void> {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 12px 16px;
+    padding: 12px 12px 12px 20px;
     background: var(--card-bg);
     border: 1px solid var(--island-border);
     border-radius: var(--radius-card);
 }
 .day {
-    margin: 16px 0 4px;
-    font-size: 12px;
+    margin: 20px 0 8px;
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.06em;
     color: var(--text-dim);
     text-transform: uppercase;
 }

@@ -10,6 +10,7 @@ import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
 import Updates from '../components/Updates.vue'
 
+const props = defineProps<{ section: string }>()
 const { settings } = useSettings()
 const cli = useCli()
 const hub = useHub()
@@ -128,10 +129,9 @@ async function clearAll(): Promise<void> {
 </script>
 
 <template>
-    <h1>Settings</h1>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-    <template v-if="settings">
-        <h2>General</h2>
+    <template v-if="settings && props.section === 'general'">
+        <h1>General</h1>
         <Card>
             <SettingRow label="Show the overlay at launch">
                 <Toggle
@@ -151,8 +151,10 @@ async function clearAll(): Promise<void> {
                 />
             </SettingRow>
         </Card>
+    </template>
 
-        <h2>Overlay</h2>
+    <template v-if="settings && props.section === 'overlay'">
+        <h1>Overlay</h1>
         <Card>
             <SettingRow label="Reply preview lines" hint="Lines of a reply shown before “more” (1–8)">
                 <input
@@ -165,8 +167,10 @@ async function clearAll(): Promise<void> {
                 />
             </SettingRow>
         </Card>
+    </template>
 
-        <h2>Terminal command</h2>
+    <template v-if="props.section === 'terminal'">
+        <h1>Terminal command</h1>
         <Card>
             <SettingRow
                 :label="cli.status.value?.command ?? 'cv'"
@@ -198,22 +202,24 @@ async function clearAll(): Promise<void> {
             <pre v-if="stable && approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
             <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>
         </Card>
+    </template>
 
-        <template v-if="stable">
-            <h2>Cursor and VS Code panels</h2>
-            <Card>
-                <SettingRow label="cv-panel" :hint="panelHint" />
-                <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
-                    <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
-                        {{ copiedSetting ? 'Copied' : 'Copy' }}
-                    </button>
-                </SettingRow>
-                <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
-                <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
-            </Card>
-        </template>
+    <template v-if="stable && props.section === 'editors'">
+        <h1>Cursor and VS Code panels</h1>
+        <Card>
+            <SettingRow label="cv-panel" :hint="panelHint" />
+            <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
+                <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
+                    {{ copiedSetting ? 'Copied' : 'Copy' }}
+                </button>
+            </SettingRow>
+            <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
+            <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
+        </Card>
+    </template>
 
-        <h2>History</h2>
+    <template v-if="settings && props.section === 'history'">
+        <h1>History</h1>
         <Card>
             <SettingRow label="Keep history for" hint="Older messages are removed at startup (1–365 days)">
                 <input
@@ -231,8 +237,10 @@ async function clearAll(): Promise<void> {
                 <button v-else class="button" type="button" @click="confirmingClear = true">Clear…</button>
             </SettingRow>
         </Card>
+    </template>
 
-        <h2>About</h2>
+    <template v-if="props.section === 'about'">
+        <h1>About</h1>
         <Card>
             <SettingRow label="Version"><span class="dim">{{ info?.version }}</span></SettingRow>
             <SettingRow label="Channel">
@@ -253,12 +261,10 @@ async function clearAll(): Promise<void> {
 <style scoped>
 input[type='number'] {
     width: 64px;
-    padding: 5px 8px;
-    border: 1px solid var(--island-border);
+    padding: 6px 8px;
+    border: 0;
     border-radius: 8px;
-    background: var(--panel-bg);
-    color: var(--text);
-    font: inherit;
+    background: var(--control);
 }
 .path {
     margin: 4px 0 0;
@@ -270,9 +276,8 @@ input[type='number'] {
 .command {
     margin: 0 0 12px;
     padding: 8px 10px;
-    border: 1px solid var(--island-border);
     border-radius: 8px;
-    background: var(--panel-bg);
+    background: var(--control);
     font-size: 12px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

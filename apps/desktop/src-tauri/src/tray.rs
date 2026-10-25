@@ -47,7 +47,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| {
             let result = match event.id().as_ref() {
                 OPEN_PANEL => panel::open(app, None),
-                UPDATE => panel::open(app, Some("/settings")),
+                UPDATE => panel::open(app, Some("/settings/about")),
                 TOGGLE_OVERLAY => overlay::toggle(app),
                 STOP_HUB => {
                     crate::stop_hub(app);

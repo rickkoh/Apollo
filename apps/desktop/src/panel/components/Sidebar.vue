@@ -1,19 +1,38 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+import * as api from '../../shared/api'
+import Icon from '../../shared/components/Icon.vue'
 import { navigation } from '../router'
 import Logo from './Logo.vue'
+
+const props = defineProps<{ collapsed: boolean }>()
+const route = useRoute()
+const active = (path: string) => route.path === path || (path !== '/' && route.path.startsWith(`${path}/`))
+
+const dev = ref(false)
+api.about().then(info => (dev.value = info.channel === 'dev'))
 </script>
 
 <template>
-    <nav class="sidebar" aria-label="Main">
+    <nav class="sidebar" :class="{ collapsed: props.collapsed }" aria-label="Main">
         <div class="brand" data-tauri-drag-region>
             <Logo />
-            <span>Apollo</span>
+            <span :class="{ 'visually-hidden': props.collapsed }">Apollo</span>
+            <span v-if="dev" class="badge" :class="{ 'visually-hidden': props.collapsed }">Dev</span>
         </div>
-        <RouterLink v-for="item in navigation" :key="item.path" :to="item.path" class="link">
-            <span class="icon" aria-hidden="true">{{ item.icon }}</span>{{ item.label }}
+        <RouterLink
+            v-for="item in navigation"
+            :key="item.path"
+            :to="item.path"
+            class="link"
+            :class="{ active: active(item.path) }"
+            :title="props.collapsed ? item.label : undefined"
+        >
+            <Icon :name="item.icon" /><span :class="{ 'visually-hidden': props.collapsed }">{{ item.label }}</span>
         </RouterLink>
-        <RouterLink to="/settings" class="link settings">
-            <span class="icon" aria-hidden="true">⚙</span>Settings
+        <RouterLink to="/settings" class="link settings" :title="props.collapsed ? 'Settings' : undefined">
+            <Icon name="settings" /><span :class="{ 'visually-hidden': props.collapsed }">Settings</span>
         </RouterLink>
     </nav>
 </template>
@@ -23,40 +42,56 @@ import Logo from './Logo.vue'
     display: flex;
     flex-direction: column;
     gap: 2px;
-    width: 210px;
-    flex: none;
-    padding: 48px 12px 16px;
-    border-right: 1px solid var(--island-border);
+    width: 208px;
+    padding: 4px 12px 16px;
+}
+.sidebar.collapsed {
+    width: 60px;
 }
 .brand {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 10px 18px;
+    height: 32px;
+    margin-bottom: 20px;
+    padding: 0 7px;
+    font-size: 16px;
     font-weight: 600;
+}
+.brand svg {
+    flex: none;
+}
+.badge {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--control);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
 }
 .link {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 10px;
+    height: 36px;
+    padding: 0 10px;
     border-radius: 8px;
     color: var(--text);
     text-decoration: none;
+    transition: background var(--motion);
 }
 .link:hover {
     background: var(--hover);
 }
-.link.router-link-exact-active,
-.link.router-link-active:not([href='#/']) {
-    background: var(--card-bg);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+.link .icon {
+    color: var(--text-dim);
+}
+.link.active {
+    background: var(--control);
     font-weight: 500;
 }
-.icon {
-    width: 16px;
-    text-align: center;
-    color: var(--text-dim);
+.link.active .icon {
+    color: var(--text);
 }
 .settings {
     margin-top: auto;

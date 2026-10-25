@@ -78,9 +78,8 @@ const hint = computed(() => {
 .notes {
     margin: 0 0 12px;
     padding: 8px 10px;
-    border: 1px solid var(--island-border);
     border-radius: 8px;
-    background: var(--panel-bg);
+    background: var(--control);
     font-family: inherit;
     font-size: 12px;
     white-space: pre-wrap;

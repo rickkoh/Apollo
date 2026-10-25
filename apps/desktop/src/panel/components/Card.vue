@@ -11,13 +11,16 @@ defineProps<{ title?: string }>()
 
 <style scoped>
 .card {
-    padding: 16px 18px;
+    padding: 16px 20px;
     background: var(--card-bg);
     border: 1px solid var(--island-border);
     border-radius: var(--radius-card);
 }
+:slotted(:last-child) {
+    margin-bottom: 0;
+}
 .title {
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-size: 12px;
     color: var(--text-dim);
 }

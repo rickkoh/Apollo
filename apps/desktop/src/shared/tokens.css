@@ -2,11 +2,16 @@
     --island-bg: rgb(255 255 255 / 0.94);
     --island-border: rgb(0 0 0 / 0.08);
     --island-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
-    --panel-bg: #faf9f7;
+    --panel-bg: #f2f1ee;
+    --surface: #fafaf8;
     --card-bg: #ffffff;
     --text: #18181b;
     --text-dim: #71717a;
     --hover: rgb(0 0 0 / 0.05);
+    --control: rgb(0 0 0 / 0.05);
+    --control-hover: rgb(0 0 0 / 0.09);
+    --backdrop: rgb(0 0 0 / 0.2);
+    --dialog-shadow: 0 24px 64px rgb(0 0 0 / 0.18);
     --accent: AccentColor;
     --ok: #34d399;
     --warn: #fbbf24;
@@ -15,7 +20,9 @@
     --radius-input: 22px;
     --radius-reply: 18px;
     --radius-card: 14px;
+    --radius-sheet: 12px;
     --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    --font-display: ui-serif, 'New York', Georgia, serif;
     --motion: 180ms;
     color-scheme: light dark;
 }
@@ -26,10 +33,15 @@
         --island-border: rgb(255 255 255 / 0.08);
         --island-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
         --panel-bg: #111113;
-        --card-bg: #18181b;
+        --surface: #18181b;
+        --card-bg: #1f1f23;
         --text: #f4f4f5;
         --text-dim: #a1a1aa;
         --hover: rgb(255 255 255 / 0.06);
+        --control: rgb(255 255 255 / 0.07);
+        --control-hover: rgb(255 255 255 / 0.11);
+        --backdrop: rgb(0 0 0 / 0.5);
+        --dialog-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
     }
 }
 
