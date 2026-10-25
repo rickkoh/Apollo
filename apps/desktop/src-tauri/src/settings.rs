@@ -17,6 +17,7 @@ pub const SETTINGS_VERSION: u32 = 1;
 pub struct Settings {
     pub version: u32,
     pub overlay: OverlaySettings,
+    pub sessions: SessionSettings,
     pub history: HistorySettings,
     pub shortcuts: ShortcutSettings,
 }
@@ -27,6 +28,14 @@ pub struct Settings {
 pub struct OverlaySettings {
     pub visible_at_launch: bool,
     pub reply_preview_lines: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[ts(export)]
+pub struct SessionSettings {
+    /// A session the hub has never seen takes the target as it connects (D92).
+    pub target_new: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -49,6 +58,7 @@ impl Default for Settings {
         Self {
             version: SETTINGS_VERSION,
             overlay: OverlaySettings::default(),
+            sessions: SessionSettings::default(),
             history: HistorySettings::default(),
             shortcuts: ShortcutSettings::default(),
         }
@@ -61,6 +71,12 @@ impl Default for OverlaySettings {
             visible_at_launch: true,
             reply_preview_lines: 3,
         }
+    }
+}
+
+impl Default for SessionSettings {
+    fn default() -> Self {
+        Self { target_new: true }
     }
 }
 
@@ -186,6 +202,7 @@ mod tests {
         let loaded = SettingsService::load(dir.path().join("settings.json")).get();
         assert_eq!(loaded.overlay.reply_preview_lines, 5);
         assert!(loaded.overlay.visible_at_launch);
+        assert!(loaded.sessions.target_new);
         assert_eq!(loaded.history.retention_days, 30);
     }
 

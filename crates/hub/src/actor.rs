@@ -66,6 +66,10 @@ pub(crate) enum Command {
         id: SessionId,
         answer: Answer<Result<(), HubError>>,
     },
+    TargetNewSessions {
+        on: bool,
+        answer: Answer<()>,
+    },
     Tick,
     Sessions {
         answer: Answer<Result<Vec<SessionView>, HubError>>,
@@ -117,6 +121,7 @@ pub(crate) struct HubActor {
     /// Live sessions' titles from Claude Code, as last stored.
     claude_titles: HashMap<SessionId, String>,
     target: Option<SessionId>,
+    target_new_sessions: bool,
     pending: HashMap<MessageId, (SessionId, Instant)>,
     pickups: HashMap<MessageId, Pickup>,
     /// Set while a target restored at start may still reconnect before another session takes over.
@@ -139,6 +144,7 @@ impl HubActor {
     ) -> Result<Self, StoreError> {
         let target = store.target()?;
         let restoring_until = target.as_ref().map(|_| Instant::now() + config.restore_grace);
+        let target_new_sessions = config.target_new_sessions;
         Ok(Self {
             config,
             port,
@@ -149,6 +155,7 @@ impl HubActor {
             activity: HashMap::new(),
             claude_titles: HashMap::new(),
             target,
+            target_new_sessions,
             pending: HashMap::new(),
             pickups: HashMap::new(),
             restoring_until,
@@ -186,6 +193,10 @@ impl HubActor {
             }
             Command::SetTarget { id, answer } => {
                 let _ = answer.send(self.set_target(id));
+            }
+            Command::TargetNewSessions { on, answer } => {
+                self.target_new_sessions = on;
+                let _ = answer.send(());
             }
             Command::Tick => self.tick(),
             Command::Sessions { answer } => {
@@ -305,6 +316,7 @@ impl HubActor {
             tx,
             claude_pid: info.claude_pid,
         };
+        let new = self.record(&id)?.is_none();
         if let Some(old) = self.links.insert(id.clone(), link) {
             let _ = old.tx.send(Outbound::Frame(HubFrame::error(
                 ErrorCode::Replaced,
@@ -313,7 +325,7 @@ impl HubActor {
             let _ = old.tx.send(Outbound::Close);
         }
         self.store.upsert_session(&info, Self::now())?;
-        if self.target.as_ref() != Some(&id) && self.may_take_target() {
+        if self.target.as_ref() != Some(&id) && ((new && self.target_new_sessions) || self.may_take_target()) {
             self.change_target(Some(id.clone()))?;
         }
         tracing::info!(session = %id, conn, "session registered");

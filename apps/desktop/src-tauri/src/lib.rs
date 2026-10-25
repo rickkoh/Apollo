@@ -84,8 +84,12 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let token = Token::generate();
     let events = Arc::new(TauriEvents::new(app.clone()));
+    let config = HubConfig {
+        target_new_sessions: settings.get().sessions.target_new,
+        ..HubConfig::new(token.clone())
+    };
     let running = tauri::async_runtime::block_on(Hub::start(
-        HubConfig::new(token.clone()),
+        config,
         Box::new(store),
         Some(presence::claude_sessions(home)),
         events,

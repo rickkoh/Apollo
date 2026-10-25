@@ -39,6 +39,8 @@ pub struct HubConfig {
     pub restore_grace: Duration,
     /// How long a message delivered to an idle session may go without starting a turn before it is flagged.
     pub pickup_timeout: Duration,
+    /// Whether a session the hub has never seen takes the target from a live one as it registers.
+    pub target_new_sessions: bool,
 }
 
 impl HubConfig {
@@ -51,6 +53,7 @@ impl HubConfig {
             max_text_bytes: 16 * 1024,
             restore_grace: Duration::from_secs(15),
             pickup_timeout: Duration::from_secs(10),
+            target_new_sessions: true,
         }
     }
 }
@@ -170,6 +173,12 @@ impl HubHandle {
         self.ask(|answer| Command::SetTarget { id, answer })
             .await
             .unwrap_or(Err(HubError::Stopped))
+    }
+
+    pub async fn set_target_new_sessions(&self, on: bool) -> Result<(), HubError> {
+        self.ask(|answer| Command::TargetNewSessions { on, answer })
+            .await
+            .ok_or(HubError::Stopped)
     }
 
     pub async fn send(&self, text: String) -> Result<Message, SendError> {

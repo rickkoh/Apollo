@@ -143,6 +143,13 @@ async function clearAll(): Promise<void> {
             <SettingRow v-if="openAtLogin !== null" label="Open at login">
                 <Toggle :model-value="openAtLogin" label="Open at login" @update:model-value="setOpenAtLogin" />
             </SettingRow>
+            <SettingRow label="Target new sessions" hint="A session you open takes over from the current target">
+                <Toggle
+                    :model-value="settings.sessions.targetNew"
+                    label="Target new sessions"
+                    @update:model-value="v => patch({ sessions: { targetNew: v } })"
+                />
+            </SettingRow>
         </Card>
 
         <h2>Overlay</h2>

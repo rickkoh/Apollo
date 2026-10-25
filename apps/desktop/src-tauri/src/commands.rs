@@ -79,8 +79,11 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-pub fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: Value) -> CommandResult<Settings> {
+pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: Value) -> CommandResult<Settings> {
     let settings = state.settings.update(patch)?;
+    if let Ok(hub) = state.hub() {
+        hub.set_target_new_sessions(settings.sessions.target_new).await?;
+    }
     events::emit(&app, SETTINGS_CHANGED, settings.clone());
     Ok(settings)
 }

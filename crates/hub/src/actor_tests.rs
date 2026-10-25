@@ -126,6 +126,21 @@ fn harness() -> Harness {
     harness_with(MemoryStore::new(), Duration::from_secs(5))
 }
 
+/// A store that has seen `ids` before, as on a relaunch.
+fn seen(ids: &[&str]) -> MemoryStore {
+    let mut store = MemoryStore::new();
+    for id in ids {
+        let info = SessionInfo {
+            id: sid(id),
+            cwd: format!("/w/{id}"),
+            claude_pid: 1,
+            started_at: OffsetDateTime::now_utc(),
+        };
+        store.upsert_session(&info, OffsetDateTime::now_utc()).unwrap();
+    }
+    store
+}
+
 impl Harness {
     async fn register(&mut self, id: &str, cwd: &str) -> (String, Peer) {
         let conn = self.next_conn;
@@ -178,8 +193,31 @@ async fn first_session_becomes_target_with_folder_title() {
 }
 
 #[tokio::test]
-async fn target_never_switches_away_from_a_live_session() {
+async fn a_new_session_takes_the_target_from_a_live_one() {
     let mut h = harness();
+    let (_, _a) = h.register("a", "/w/a").await;
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("b")));
+}
+
+#[tokio::test]
+async fn a_known_session_reconnecting_never_takes_the_target_from_a_live_one() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    let (_, _b) = h.register("b", "/w/b").await;
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    let (_, _a) = h.register("a", "/w/a").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("b")));
+}
+
+#[tokio::test]
+async fn with_new_sessions_untargeted_the_target_never_switches_away_from_a_live_session() {
+    let mut h = harness();
+    h.handle.set_target_new_sessions(false).await.unwrap();
     let (_, _a) = h.register("a", "/w/a").await;
     let (_, _b) = h.register("b", "/w/b").await;
     assert_eq!(h.handle.status().await.unwrap().target, Some(sid("a")));
@@ -200,7 +238,7 @@ async fn registering_takes_over_a_target_that_disconnected() {
 
 #[tokio::test]
 async fn a_restored_target_keeps_priority_during_the_grace_period() {
-    let mut store = MemoryStore::new();
+    let mut store = seen(&["a", "b"]);
     store.set_target(Some(&sid("a"))).unwrap();
     let mut h = harness_config(store, |c| c.restore_grace = Duration::from_secs(60));
     let (_, _b) = h.register("b", "/w/b").await;
@@ -212,7 +250,7 @@ async fn a_restored_target_keeps_priority_during_the_grace_period() {
 
 #[tokio::test]
 async fn after_the_grace_period_a_live_session_takes_over_a_target_that_never_came_back() {
-    let mut store = MemoryStore::new();
+    let mut store = seen(&["b", "c"]);
     store.set_target(Some(&sid("gone"))).unwrap();
     let mut h = harness_config(store, |c| c.restore_grace = Duration::from_millis(30));
     let (_, _b) = h.register("b", "/w/b").await;
@@ -230,7 +268,7 @@ async fn after_the_grace_period_a_live_session_takes_over_a_target_that_never_ca
 
 #[tokio::test]
 async fn restored_target_stays_target_when_it_registers() {
-    let mut store = MemoryStore::new();
+    let mut store = seen(&["a", "b"]);
     store.set_target(Some(&sid("a"))).unwrap();
     let mut h = harness_with(store, Duration::from_secs(5));
     let (_, _a) = h.register("a", "/w/a").await;
@@ -285,8 +323,8 @@ async fn send_errors() {
 #[tokio::test]
 async fn send_reaches_only_the_target_and_delivered_marks_it() {
     let mut h = harness();
-    let (_, mut a) = h.register("a", "/w/a").await;
     let (_, mut b) = h.register("b", "/w/b").await;
+    let (_, mut a) = h.register("a", "/w/a").await;
     h.events.take();
 
     let message = h.handle.send(" click Settle ".into()).await.unwrap();
