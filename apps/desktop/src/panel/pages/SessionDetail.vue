@@ -16,6 +16,7 @@ const { messages } = useMessageFeed(m => m.session === props.id)
 const scroller = ref<HTMLElement | null>(null)
 const loadingOlder = ref(false)
 const exhausted = ref(false)
+const error = ref<string | null>(null)
 
 function markLatestRead(): void {
     const latest = [...messages.value].reverse().find(m => m.direction === 'from_session')
@@ -29,7 +30,14 @@ async function scrollToBottom(): Promise<void> {
 
 watch(() => props.id, async id => {
     exhausted.value = false
-    messages.value = await api.history(id, PAGE)
+    error.value = null
+    try {
+        messages.value = await api.history(id, PAGE)
+    } catch (err) {
+        messages.value = []
+        error.value = api.errorMessage(err)
+        return
+    }
     exhausted.value = messages.value.length < PAGE
     markLatestRead()
     await scrollToBottom()
@@ -47,12 +55,17 @@ async function onScroll(): Promise<void> {
     if (!el || el.scrollTop > NEAR_EDGE_PX || loadingOlder.value || exhausted.value || !messages.value[0]) return
     loadingOlder.value = true
     const before = el.scrollHeight
-    const older = await api.history(props.id, PAGE, messages.value[0].id)
-    exhausted.value = older.length < PAGE
-    messages.value = [...older, ...messages.value]
-    await nextTick()
-    el.scrollTop = el.scrollHeight - before
-    loadingOlder.value = false
+    try {
+        const older = await api.history(props.id, PAGE, messages.value[0].id)
+        exhausted.value = older.length < PAGE
+        messages.value = [...older, ...messages.value]
+        await nextTick()
+        el.scrollTop = el.scrollHeight - before
+    } catch (err) {
+        error.value = api.errorMessage(err)
+    } finally {
+        loadingOlder.value = false
+    }
 }
 </script>
 
@@ -64,9 +77,10 @@ async function onScroll(): Promise<void> {
             {{ session?.title ?? props.id }}
         </h1>
         <p class="dim folder">{{ session?.cwd }}</p>
+        <p v-if="error" class="error-text" role="alert">{{ error }}</p>
         <div ref="scroller" class="timeline" @scroll="onScroll">
             <p v-if="exhausted && messages.length > 0" class="dim edge">Beginning of the conversation</p>
-            <p v-if="messages.length === 0" class="dim edge">No messages yet.</p>
+            <p v-if="messages.length === 0 && !error" class="dim edge">No messages yet.</p>
             <MessageRow v-for="m in messages" :key="m.id" :message="m" />
         </div>
     </div>

@@ -26,6 +26,10 @@ export function isUiError(value: unknown): value is UiError {
     return typeof value === 'object' && value !== null && 'code' in value && 'message' in value
 }
 
+export function errorMessage(err: unknown): string {
+    return isUiError(err) ? err.message : String(err)
+}
+
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
     try {
         return await invoke<T>(command, args)

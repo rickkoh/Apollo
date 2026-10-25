@@ -17,7 +17,11 @@ const { sessions, live } = useSessions()
 const overlay = useOverlayVisible()
 const cli = useCli()
 const { messages } = useMessageFeed(() => true, RECENT)
-api.recentMessages(RECENT).then(list => (messages.value = list))
+const recentError = ref<string | null>(null)
+api.recentMessages(RECENT).then(
+    list => (messages.value = list),
+    err => (recentError.value = api.errorMessage(err)),
+)
 
 const greeting = (() => {
     const hour = new Date().getHours()
@@ -75,7 +79,8 @@ async function copyCommand(): Promise<void> {
     <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>
 
     <h2>Recent</h2>
-    <p v-if="groups.length === 0" class="dim">Nothing yet. Messages you dictate and Claude's replies show up here.</p>
+    <p v-if="recentError" class="error-text">{{ recentError }}</p>
+    <p v-else-if="groups.length === 0" class="dim">Nothing yet. Messages you dictate and Claude's replies show up here.</p>
     <section v-for="group in groups" :key="group.day">
         <h3 class="day">{{ group.day }}</h3>
         <MessageRow

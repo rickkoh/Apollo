@@ -24,7 +24,7 @@ async function run(action: () => Promise<void>): Promise<void> {
     try {
         await action()
     } catch (err) {
-        error.value = api.isUiError(err) ? err.message : String(err)
+        error.value = api.errorMessage(err)
     }
 }
 

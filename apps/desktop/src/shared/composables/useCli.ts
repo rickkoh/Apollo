@@ -17,12 +17,12 @@ export function useCli() {
         try {
             status.value = await api.installCli()
         } catch (err) {
-            error.value = api.isUiError(err) ? err.message : String(err)
+            error.value = api.errorMessage(err)
         } finally {
             busy.value = false
         }
     }
 
-    refresh().catch(err => (error.value = api.isUiError(err) ? err.message : String(err)))
+    refresh().catch(err => (error.value = api.errorMessage(err)))
     return { status, error, busy, install, refresh }
 }
