@@ -132,6 +132,34 @@ Record every new decision and question here.
   tick, matched on session id, degrading to no indicator (§22.4). Answers Q5 without plugin hooks.
 - **D50 (optional) Registry sessions without a channel show as "Not voice-ready"** in the picker and on Sessions;
   never stored, never targetable.
+- **D51 The project is called Apollo** (was Voice Bridge): app "Apollo", bundle id `com.rickkoh.apollo`, crates,
+  plugin and marketplace (`apollo`), env vars (`APOLLO_DISCOVERY`, `APOLLO_CV`), the approval file
+  (`managed-settings.d/apollo.json`, so the one-time `sudo` approval is re-run) and the folder `~/Desktop/apollo`. The
+  terminal command stays `cv`. Data under the old identifier is test data and is not migrated.
+- **D52 Two channels on one Mac.** Stable: "Apollo", installed in /Applications, `com.rickkoh.apollo`, launcher `cv`.
+  Dev: "Apollo Dev" from `tauri dev` with `tauri.dev.conf.json` layered on, `com.rickkoh.apollo.dev`, launcher
+  `cv-dev` (development flag, D46), overlay bottom-left with a DEV tag. Separate data folders, discovery files and
+  single-instance locks; each launcher sets `APOLLO_DISCOVERY` for its channel.
+- **D53 One version source:** `workspace.package.version` in `Cargo.toml` (Tauri reads it). About shows version,
+  channel and git commit.
+- **D54 Changelog from conventional commits with `git-cliff`:** `feat` bumps minor, `fix` patch, a breaking change
+  major; `CHANGELOG.md` is committed and a release's notes are its section.
+- **D55 Releases live in a private GitLab project (default branch `master`):** an annotated
+  `vX.Y.Z` tag; the build files in the generic package registry (`apollo/X.Y.Z/`); a GitLab Release per tag with the
+  notes and links to those files; the update feed `release/latest.json` committed in the release commit (§23).
+- **D56 Updates use `tauri-plugin-updater`:** the feed is checked at launch, every 6 hours and on demand; the menu bar
+  and Settings → About offer "Update to vX.Y.Z" with the notes; install and relaunch happen on click. The updater key
+  pair (minisign) stays outside the repo; its public key is in `tauri.conf.json`. The dev channel never updates.
+- **D57 Reading the private project uses a GitLab deploy token** (`read_repository`, `read_package_registry`) kept in
+  the macOS Keychain and entered once in Settings; never in the repo or the binary. Without one, updates are off and
+  Settings says why.
+- **D58 Builds are ad-hoc signed** (`signingIdentity: "-"`); a Developer ID and notarisation wait until someone else
+  installs Apollo.
+- **D59 Compatibility rules for updates:** the install path never changes (so `cv` stays valid); the hub accepts every
+  wire-protocol version it has shipped (running sessions keep their old channel until restarted); migrations are
+  forward-only and the app refuses a database newer than it knows, with a clear message.
+- **D60 A `release` skill:** check the tree and tests, compute the version and notes, show them and
+  ask, then `scripts/release.sh` bumps, builds, uploads, writes the feed, commits, tags and pushes.
 
 ## 3. Architecture
 
@@ -996,7 +1024,23 @@ Checks:
 - The §13 rows for Settings, CLI and Presence are green; `everywhere` adds a channel test for the missing marker.
   Lint clean.
 
-### Phase 6 — later
+### Phase 6 — Apollo: channels, releases and self-update (§23)
+
+After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater replacing an ad-hoc-signed
+`/Applications/Apollo.app` and relaunching with Gatekeeper quiet.
+
+- **6a Rename and channels.** D51, D52, D53. Checks: every test tier green; `tauri dev` runs as "Apollo Dev" with its
+  data in `com.rickkoh.apollo.dev`; a `cv-dev` session reaches only Apollo Dev; the approval is re-run under the new
+  name and `cv` starts with no dialog; `origin` is the GitLab project and `master` is pushed.
+- **6b Changelog and release tooling.** D54, D55, D60; S7. Checks: `git-cliff` produces the notes for `v0.1.0`; S7
+  passes; the `release` skill stops on a dirty tree and on a failing test.
+- **6c Self-update and the first releases.** D56 to D59; S8. Checks: `v0.1.0` is released (tag, GitLab Release,
+  package files, feed); installed from its `.dmg`, Apollo runs from /Applications with `cv`; Apollo and Apollo Dev run
+  side by side and each session reaches only its own app; after `v0.1.1` is released, the installed app offers it with
+  its notes, installs it, relaunches at 0.1.1, and its sessions reconnect; without a token, Settings says updates are
+  off.
+
+### Phase 7 — later
 
 Global shortcuts (R9), focus hand-back after a send (Q3), launch at login, a screen-change observer, multiple
 displays (Q13), the final logo (Q14), signing and notarisation.
@@ -1031,12 +1075,14 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q1** Channels are confirmed on the account tested so far; recheck once on the organization login if that becomes
   the day-to-day one. On that login an admin must also set `channelsEnabled: true` and put the voice plugin on the
   organization's `allowedChannelPlugins`, which replaces the local approval file (D45).
-- **Q3** After a send, should focus return to the app you were in? (Phase 6.)
+- **Q3** After a send, should focus return to the app you were in? (Phase 7.)
 - **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
-  wave)? Phase 6; phases 1–5 use the D27 placeholder.
+  wave)? Phase 7; phases 1–6 use the D27 placeholder.
 - **Q16** Can IDE panel sessions take channels through Cursor's `claudeCode.claudeProcessWrapper`? (S6, optional;
   expected no.)
 - **Q17** Show sessions without a channel as "Not voice-ready" (D50)? Decide once activity has shipped.
+- **Q18** Which URL and header does GitLab 16.11 accept for a private project's raw file and generic package with a
+  deploy token? (S7.)
 
 Answered: Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q5 (D49), Q6
 (full-screen support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local
@@ -1052,6 +1098,8 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S4 channel approval | not run | |
 | S5 session registry activity | not run | |
 | S6 IDE panel channel (optional) | not run | |
+| S7 GitLab feed and package access | not run | Q18: fetch a raw file and a generic package file from the GitLab project with a deploy token |
+| S8 in-place update | not run | the updater swaps an ad-hoc-signed `/Applications/Apollo.app` and relaunches; Gatekeeper stays quiet |
 
 **S3** (~45 min), with a full-screen app (for example Chrome full screen), and with
 `ActivationPolicy::Accessory` plus the §9.6 Edit menu in place: S2 ran as a regular app, so whether ⌘V reaches the
@@ -1152,6 +1200,9 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | not started | | |
+| 6a Rename and channels | not started | | |
+| 6b Changelog and release tooling | not started | | |
+| 6c Self-update and first releases | not started | | |
 
 ## 22. Native integration
 
@@ -1291,3 +1342,52 @@ pub trait Presence: Send {
 - An admin prompt in the app that writes the approval file: a privilege-escalation path in app code for a one-time
   step.
 - An official marketplace listing: needs an Anthropic partner contact.
+
+## 23. Release and update
+
+Phase 6 turns the working copy into an installed, self-updating Apollo while development continues beside it.
+
+### 23.1 Channels
+
+| | Stable | Dev |
+|---|---|---|
+| App | "Apollo", `/Applications/Apollo.app` | "Apollo Dev", `npm --prefix apps/desktop run tauri dev` |
+| Bundle id and data folder | `com.rickkoh.apollo` | `com.rickkoh.apollo.dev` (`tauri.dev.conf.json`) |
+| Launcher | `cv` | `cv-dev` (development flag) |
+| Overlay | bottom-right | bottom-left, DEV tag on the chip |
+| Updates | from the feed (D56) | none: it is the working copy |
+
+### 23.2 A release
+
+1. The `release` skill checks: on `master`, clean tree, in step with `origin`, every test tier and lint green.
+2. `git cliff --bumped-version` gives the version, `git cliff --unreleased` the notes. Shown to the user; nothing goes
+   on until they agree.
+3. `scripts/release.sh <version>`: bump `workspace.package.version`, prepend the notes to `CHANGELOG.md`, `tauri build`
+   (stable config, ad-hoc signed, updater artifacts on), upload `Apollo.app.tar.gz`, its `.sig` and the `.dmg` to
+   `apollo/<version>/` in the generic package registry, write `release/latest.json`, commit `chore(release): v<version>`,
+   tag, push `master` and the tag, and create the GitLab Release with the notes and links to the three files.
+4. Never move or delete a pushed tag; a broken release is fixed by the next one.
+
+`release/latest.json`, in the updater's static format:
+
+```json
+{
+  "version": "0.1.1",
+  "notes": "### Features\n- …",
+  "pub_date": "2026-11-02T10:00:00Z",
+  "platforms": {
+    "darwin-aarch64": { "signature": "<contents of Apollo.app.tar.gz.sig>", "url": "<package file URL, S7>" }
+  }
+}
+```
+
+### 23.3 Updating
+
+- The updater reads the feed with the deploy token from the Keychain (D57) as a request header; the exact URL and
+  header come from S7.
+- Checked at launch, every 6 hours and from Settings → About → Check for updates. A newer version shows "Update to
+  vX.Y.Z…" in the menu bar and in About with its notes; nothing installs without a click.
+- Install: download, verify the signature, replace `/Applications/Apollo.app`, relaunch. The hub restarts and the
+  channels reconnect (phase 2's end-to-end test covers it); running sessions keep their old channel code (D59).
+- The dev channel builds without the updater's check and shows "Dev build" with the commit instead.
+
