@@ -15,7 +15,8 @@ use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
 use crate::settings::{LIMITS, Settings, SettingsLimits};
 use crate::state::AppState;
 use crate::updates::{UpdateStatus, Updates};
-use crate::windows::{overlay, panel};
+use crate::windows::overlay::{self, OverlayGeometry};
+use crate::windows::panel;
 
 type CommandResult<T> = Result<T, UiError>;
 
@@ -81,12 +82,10 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 
 #[tauri::command]
 pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: Value) -> CommandResult<Settings> {
-    let width = state.settings.get().overlay.width;
+    let before = state.settings.get().overlay;
     let settings = state.settings.update(patch)?;
-    if settings.overlay.width != width
-        && let Err(err) = overlay::reposition(&app)
-    {
-        tracing::error!("re-placing the overlay failed: {err}");
+    if settings.overlay.width != before.width || settings.overlay.layout != before.layout {
+        overlay::reposition(&app);
     }
     if let Ok(hub) = state.hub() {
         hub.set_target_new_sessions(settings.sessions.target_new).await?;
@@ -101,8 +100,24 @@ pub fn settings_limits() -> SettingsLimits {
 }
 
 #[tauri::command]
-pub fn overlay_resize(window: WebviewWindow, height: f64) -> CommandResult<()> {
-    overlay::place(&window, height.clamp(1.0, 2000.0)).map_err(UiError::internal)
+pub fn overlay_frame(window: WebviewWindow, width: f64, height: f64) -> CommandResult<()> {
+    overlay::frame(&window, width.clamp(1.0, 2000.0), height.clamp(1.0, 2000.0)).map_err(UiError::internal)
+}
+
+#[tauri::command]
+pub fn overlay_geometry(window: WebviewWindow) -> CommandResult<OverlayGeometry> {
+    overlay::geometry(&window)
+        .map_err(UiError::internal)?
+        .ok_or_else(|| UiError::internal("no screen to place the overlay on"))
+}
+
+#[tauri::command]
+pub fn overlay_keyboard(window: WebviewWindow, take: bool) {
+    if take {
+        macos::island::take_keyboard(&window);
+    } else {
+        macos::island::give_back_keyboard(&window);
+    }
 }
 
 #[tauri::command]

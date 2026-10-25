@@ -11,6 +11,8 @@ import type {
     Message,
     MessageId,
     MessageUpdated,
+    OverlayGeometry,
+    OverlayPointer,
     OverlayVisibility,
     PluginStatus,
     SessionId,
@@ -61,7 +63,9 @@ export const clearHistory = () => call<void>('clear_history')
 export const getSettings = () => call<Settings>('get_settings')
 export const updateSettings = (patch: SettingsPatch) => call<Settings>('update_settings', { patch })
 export const settingsLimits = () => call<SettingsLimits>('settings_limits')
-export const overlayResize = (height: number) => call<void>('overlay_resize', { height })
+export const overlayFrame = (width: number, height: number) => call<void>('overlay_frame', { width, height })
+export const overlayGeometry = () => call<OverlayGeometry>('overlay_geometry')
+export const overlayKeyboard = (take: boolean) => call<void>('overlay_keyboard', { take })
 export const overlayVisible = () => call<boolean>('overlay_visible')
 export const setOverlayVisible = (visible: boolean) => call<void>('set_overlay_visible', { visible })
 export const cliStatus = () => call<CliStatus>('cli_status')
@@ -83,6 +87,8 @@ export const onTargetChanged = (cb: (payload: TargetChanged) => void) => on('tar
 export const onMessageAdded = (cb: (message: Message) => void) => on('message-added', cb)
 export const onMessageUpdated = (cb: (payload: MessageUpdated) => void) => on('message-updated', cb)
 export const onSettingsChanged = (cb: (settings: Settings) => void) => on('settings-changed', cb)
+export const onOverlayPointer = (cb: (payload: OverlayPointer) => void) => on('overlay-pointer', cb)
+export const onOverlayGeometry = (cb: (geometry: OverlayGeometry) => void) => on('overlay-geometry', cb)
 export const onOverlayVisibility = (cb: (payload: OverlayVisibility) => void) => on('overlay-visibility', cb)
 export const onHubState = (cb: (payload: HubState) => void) => on('hub-state', cb)
 export const onUpdateStatus = (cb: (status: UpdateStatus) => void) => on('update-status', cb)

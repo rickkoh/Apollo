@@ -8,13 +8,14 @@ export interface Card {
     text: string
     /** The stored message behind a `sent` or `reply` card. */
     message: Message | null
-    /** Milliseconds left before the card leaves; null while it waits (a pending echo, an error). */
+    /** Milliseconds left before the card leaves; null while it waits (a pending echo, an error) or when nothing fades. */
     ttl: number | null
     expanded: boolean
 }
 
 export interface StackOptions {
-    fadeMs: number
+    /** Null keeps every card until newer ones push it out. */
+    fadeMs: number | null
     maxCards: number
 }
 

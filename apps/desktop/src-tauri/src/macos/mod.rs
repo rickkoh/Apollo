@@ -10,6 +10,8 @@ use tauri_nspanel::WebviewWindowExt;
 
 use self::panel_class::OverlayPanel;
 
+pub mod island;
+
 /// The macro brings its own AppKit imports, so it lives apart from ours.
 mod panel_class {
     tauri_nspanel::tauri_panel! {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-overlay-keyboard"
+description = "Enables the overlay_keyboard command without any pre-configured scope."
+commands.allow = ["overlay_keyboard"]
+
+[[permission]]
+identifier = "deny-overlay-keyboard"
+description = "Denies the overlay_keyboard command without any pre-configured scope."
+commands.deny = ["overlay_keyboard"]

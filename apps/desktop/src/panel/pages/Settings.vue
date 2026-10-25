@@ -93,9 +93,9 @@ const limits = ref<SettingsLimits | null>(null)
 api.settingsLimits().then(l => (limits.value = l))
 
 const overlayRows: { key: keyof SettingsLimits['overlay']; label: string; hint: string; unit?: string }[] = [
-    { key: 'width', label: 'Overlay width', hint: 'Width of the overlay', unit: 'px' },
+    { key: 'width', label: 'Overlay width', hint: 'Width of the open island', unit: 'px' },
     { key: 'replyPreviewLines', label: 'Reply preview lines', hint: 'Lines of a reply shown before “more”' },
-    { key: 'replyFadeSeconds', label: 'Replies fade after', hint: 'Hovering the stack or expanding a card pauses it', unit: 'seconds' },
+    { key: 'replyFadeSeconds', label: 'Replies stay open for', hint: 'A reply arriving while the island is closed opens it this long', unit: 'seconds' },
     { key: 'maxCards', label: 'Messages in the stack', hint: 'The oldest leaves first' },
     { key: 'expandedHeightPercent', label: 'Expanded reply height', hint: 'Share of the screen an expanded reply can fill', unit: '%' },
     { key: 'inputLines', label: 'Text box height', hint: 'Lines the text box grows to before it scrolls', unit: 'lines' },

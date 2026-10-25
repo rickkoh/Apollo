@@ -92,6 +92,16 @@ test('a note on a delivered message stays on its echo, which keeps waiting', () 
     assert.equal(s.cards[0]!.message?.detail, "Claude hasn't picked this up")
 })
 
+test('with no fade, cards stay until newer ones push them out', () => {
+    const s = new MessageStack({ fadeMs: null, maxCards: MAX_CARDS })
+    s.sent(message('to_session', 'one'))
+    s.reply(message('from_session', 'r1'))
+    s.tick(FADE_MS * 10, false)
+    assert.deepEqual(texts(s), ['sent:one', 'reply:r1'])
+    for (const t of ['r2', 'r3']) s.reply(message('from_session', t))
+    assert.deepEqual(texts(s), ['reply:r1', 'reply:r2', 'reply:r3'])
+})
+
 test('a smaller cap drops the oldest cards at once', () => {
     const s = stack()
     for (const t of ['a', 'b', 'c']) s.reply(message('from_session', t))

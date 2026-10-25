@@ -11,6 +11,8 @@ pub const MESSAGE_ADDED: &str = "message-added";
 pub const MESSAGE_UPDATED: &str = "message-updated";
 pub const SETTINGS_CHANGED: &str = "settings-changed";
 pub const OVERLAY_VISIBILITY: &str = "overlay-visibility";
+pub const OVERLAY_POINTER: &str = "overlay-pointer";
+pub const OVERLAY_GEOMETRY: &str = "overlay-geometry";
 pub const HUB_STATE: &str = "hub-state";
 pub const UPDATE_STATUS: &str = "update-status";
 
@@ -32,6 +34,12 @@ pub struct MessageUpdated {
 #[ts(export)]
 pub struct OverlayVisibility {
     pub visible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct OverlayPointer {
+    pub inside: bool,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

@@ -14,6 +14,8 @@ const props = defineProps<{
     dev: boolean
     command: string
     maxLines: number
+    /** Drawn inside the island, whose notch row shows the status, DEV, activity and delivery. */
+    inset?: boolean
 }>()
 const emit = defineEmits<{ send: [text: string]; 'toggle-picker': [] }>()
 
@@ -50,6 +52,9 @@ usePasteToSend(box, {
 })
 
 defineExpose({
+    focus(): void {
+        box.value?.focus()
+    },
     restore(previous: string): void {
         if (!text.value.trim()) text.value = previous
     },
@@ -57,7 +62,7 @@ defineExpose({
 </script>
 
 <template>
-    <div class="island" role="group" aria-label="Voice input">
+    <div class="island" :class="{ inset: props.inset }" role="group" aria-label="Voice input">
         <button
             class="chip"
             type="button"
@@ -66,11 +71,15 @@ defineExpose({
             :title="props.target?.cwd ?? 'No session'"
             @click="emit('toggle-picker')"
         >
-            <StatusDot :state="props.status" />
-            <span v-if="props.dev" class="dev" title="Apollo Dev">DEV</span>
+            <template v-if="!props.inset">
+                <StatusDot :state="props.status" />
+                <span v-if="props.dev" class="dev" title="Apollo Dev">DEV</span>
+            </template>
             <span class="title">{{ props.target?.title ?? 'No session' }}</span>
-            <span v-if="props.target?.activity === 'busy'" class="activity">· working</span>
-            <span v-if="props.otherUnread" class="unread" aria-label="Another session has unread replies" />
+            <template v-if="!props.inset">
+                <span v-if="props.target?.activity === 'busy'" class="activity">· working</span>
+                <span v-if="props.otherUnread" class="unread" aria-label="Another session has unread replies" />
+            </template>
             <span class="caret" aria-hidden="true">{{ props.pickerOpen ? '▴' : '▾' }}</span>
         </button>
         <span class="divider" aria-hidden="true" />
@@ -83,7 +92,7 @@ defineExpose({
             :disabled="disabled"
         />
         <button class="send" type="button" :disabled="disabled || !text.trim()" aria-label="Send" @click="sendBox">
-            <span v-if="props.delivered" class="tick" aria-label="Delivered">✓</span>
+            <span v-if="props.delivered && !props.inset" class="tick" aria-label="Delivered">✓</span>
             <span v-else aria-hidden="true">⏎</span>
         </button>
     </div>
@@ -101,6 +110,13 @@ defineExpose({
     border: 1px solid var(--island-border);
     border-radius: var(--radius-input);
     box-shadow: var(--island-shadow);
+}
+.island.inset {
+    min-height: 40px;
+    background: var(--control);
+    border-color: transparent;
+    border-radius: 14px;
+    box-shadow: none;
 }
 .chip {
     display: flex;

@@ -12,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
+block2 = "0.6"
 hub = { path = "../../../crates/hub" }
 log = "0.4"
 objc2 = "0.6"

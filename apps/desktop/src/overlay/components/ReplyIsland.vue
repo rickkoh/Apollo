@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Card } from '../stack'
 
-const props = defineProps<{ card: Card; previewLines: number; expandedHeightPercent: number }>()
+const props = defineProps<{ card: Card; previewLines: number; expandedHeightPercent: number; inset?: boolean }>()
 const emit = defineEmits<{ 'update:expanded': [expanded: boolean]; 'open-panel': [] }>()
 
 const body = ref<HTMLElement | null>(null)
@@ -26,7 +26,7 @@ const labels = { sent: 'Your message', reply: 'Reply from Claude', error: 'Error
 <template>
     <section
         class="island"
-        :class="props.card.kind"
+        :class="[props.card.kind, { inset: props.inset }]"
         :aria-label="labels[props.card.kind]"
         @click="toggle"
         @dblclick="emit('open-panel')"
@@ -62,6 +62,17 @@ const labels = { sent: 'Your message', reply: 'Reply from Claude', error: 'Error
     box-shadow: var(--island-shadow);
     cursor: default;
     user-select: text;
+}
+.island.inset {
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    box-shadow: none;
+}
+.island.inset:hover {
+    background: var(--hover);
 }
 .sent {
     color: var(--text-dim);

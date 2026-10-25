@@ -5,7 +5,13 @@ import StatusDot from '../../shared/components/StatusDot.vue'
 import { clock, withinHours } from '../../shared/format'
 import type { SessionId, SessionView } from '../../shared/types'
 
-const props = defineProps<{ sessions: SessionView[]; targetId: SessionId | null; command: string; endedHours: number }>()
+const props = defineProps<{
+    sessions: SessionView[]
+    targetId: SessionId | null
+    command: string
+    endedHours: number
+    inset?: boolean
+}>()
 const emit = defineEmits<{ select: [id: SessionId]; close: [] }>()
 
 const rows = computed(() => [
@@ -21,7 +27,7 @@ onScopeDispose(() => document.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-    <ul class="island" role="listbox" aria-label="Sessions">
+    <ul class="island" :class="{ inset: props.inset }" role="listbox" aria-label="Sessions">
         <li v-if="rows.length === 0" class="empty"><StartSessionHint :command="props.command" /></li>
         <li v-for="s in rows" :key="s.id" role="option" :aria-selected="s.id === props.targetId" :aria-disabled="!s.live">
             <button type="button" :disabled="!s.live" :title="s.cwd" @click="emit('select', s.id)">
@@ -47,6 +53,12 @@ onScopeDispose(() => document.removeEventListener('keydown', onKey))
     border: 1px solid var(--island-border);
     border-radius: var(--radius-reply);
     box-shadow: var(--island-shadow);
+}
+.island.inset {
+    padding: 2px 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
 }
 button {
     display: flex;

@@ -11,7 +11,9 @@
     "allow-history",
     "allow-mark-read",
     "allow-get-settings",
-    "allow-overlay-resize",
+    "allow-overlay-frame",
+    "allow-overlay-geometry",
+    "allow-overlay-keyboard",
     "allow-open-panel",
     "allow-about"
   ]

@@ -11,6 +11,7 @@ export function useStack(
     target: Ref<SessionView | null>,
     options: () => StackOptions,
     onUndelivered: (text: string) => void,
+    onReply: () => void = () => {},
 ) {
     const stack = reactive(new MessageStack(options()))
     const hovered = ref(false)
@@ -24,6 +25,7 @@ export function useStack(
             stack.sent(message)
         } else {
             stack.reply(message)
+            onReply()
             api.markRead(message.session, message.id).catch(() => {})
         }
     }))

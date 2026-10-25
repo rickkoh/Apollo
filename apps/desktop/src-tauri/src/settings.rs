@@ -27,6 +27,7 @@ pub struct Settings {
 #[ts(export)]
 pub struct OverlaySettings {
     pub visible_at_launch: bool,
+    pub layout: OverlayLayout,
     /// Logical pixels, including the transparent shadow margin the page draws inside the window.
     pub width: u16,
     pub reply_preview_lines: u8,
@@ -36,6 +37,16 @@ pub struct OverlaySettings {
     pub expanded_height_percent: u8,
     /// Ended sessions stay in the picker this long; 0 hides them.
     pub picker_ended_hours: u16,
+}
+
+/// The island hangs from the notch; the classic overlay floats in a bottom corner.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum OverlayLayout {
+    #[default]
+    Island,
+    Classic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -77,6 +88,7 @@ impl Default for OverlaySettings {
     fn default() -> Self {
         Self {
             visible_at_launch: true,
+            layout: OverlayLayout::Island,
             width: 420,
             reply_preview_lines: 3,
             reply_fade_seconds: 20,
@@ -326,6 +338,22 @@ mod tests {
         assert_eq!(updated.overlay, OverlaySettings::default());
         assert_eq!(SettingsService::load(dir.path().join("settings.json")).get(), updated);
         assert!(!dir.path().join("settings.json.tmp").exists());
+    }
+
+    #[test]
+    fn the_layout_defaults_to_the_island_and_keeps_classic() {
+        let (dir, service) = service();
+        assert_eq!(service.get().overlay.layout, OverlayLayout::Island);
+        let updated = service.update(json!({"overlay": {"layout": "classic"}})).unwrap();
+        assert_eq!(updated.overlay.layout, OverlayLayout::Classic);
+        assert_eq!(
+            SettingsService::load(dir.path().join("settings.json"))
+                .get()
+                .overlay
+                .layout,
+            OverlayLayout::Classic
+        );
+        assert!(service.update(json!({"overlay": {"layout": "corner"}})).is_err());
     }
 
     #[test]
