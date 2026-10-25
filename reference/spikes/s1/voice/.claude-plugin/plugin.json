@@ -1,0 +1,5 @@
+{
+  "name": "voice",
+  "version": "0.0.1",
+  "description": "Spike: a voice channel that registers its session with the local hub."
+}
