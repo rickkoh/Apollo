@@ -2,6 +2,12 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.4.0 - 2026-10-25
+
+### Features
+
+- panel: inset window buttons, a collapsible sidebar, pages on a sheet and settings in a dialog
+- panel: a cleaner sessions table: aligned row actions, home-relative folders, unread beside the title
 ## 0.3.0 - 2026-10-25
 
 ### Features
