@@ -1150,14 +1150,13 @@ After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater repla
 
 - **6a Rename and channels.** D51, D52, D53. Checks: every test tier green; `tauri dev` runs as "Apollo Dev" with its
   data in `com.rickkoh.apollo.dev`; a `cv-dev` session reaches only Apollo Dev; the approval is re-run under the new
-  name and `cv` starts with no dialog; `origin` is the GitLab project and `master` is pushed.
-- **6b Changelog and release tooling.** D54, D55, D60; S7. Checks: `git-cliff` produces the notes for `v0.1.0`; S7
-  passes; the `release` skill stops on a dirty tree and on a failing test.
-- **6c Self-update and the first releases.** D56 to D59; S8. Checks: `v0.1.0` is released (tag, GitLab Release,
-  package files, feed); installed from its `.dmg`, Apollo runs from /Applications with `cv`; Apollo and Apollo Dev run
-  side by side and each session reaches only its own app; after `v0.1.1` is released, the installed app offers it with
-  its notes, installs it, relaunches at 0.1.1, and its sessions reconnect; without a token, Settings says updates are
-  off.
+  name and `cv` starts with no dialog; `origin` is `rickkoh/Apollo` and `main` is pushed (D83).
+- **6b Changelog and release tooling.** D54, D60, D74, D83–D86, D89. Checks: `git-cliff` produces the notes for
+  `v0.1.0`; the `release` skill stops on a dirty tree and on a failing test.
+- **6c Self-update and the first releases.** D56, D58, D59, D76, D80–D82; S8. Checks: `v0.1.0` is released (tag,
+  GitHub Release with its files, feed); installed from its `.dmg`, Apollo runs from /Applications with `cv`; Apollo and
+  Apollo Dev run side by side and each session reaches only its own app; after `v0.1.1` is released, the installed app
+  offers it with its notes, installs it, relaunches at 0.1.1, and its sessions reconnect.
 
 ### Phase 7 — later
 
@@ -1338,9 +1337,9 @@ Developer login afterwards (Q21). Then: nothing may tie Apollo to an employer (D
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | done | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green; manual checks confirmed by the user |
 | 5b IDE panels | done | 2026-10-26 | S6 passed with a prototype bridge; the bundled bridge, panel instructions, `cv-panel` and the Settings section are in; every automated check green; manual checks confirmed by the user |
-| 6a Rename and channels | in progress | 2026-10-26 | channel split done (D77–D79); rename done (D51, D87, D88), every tier green; `main` pushed to GitHub; the approval re-run and the folder move wait for the installed app |
-| 6b Changelog and release tooling | in progress | 2026-10-26 | preflight in a scratch clone: green run prints `0.1.0` and its notes; stops on a dirty tree and on a failing channel test; S7 not needed after the move to public GitHub releases (D85) |
-| 6c Self-update and first releases | in progress | 2026-10-26 | updater on public GitHub releases (D83–D86), key generated, S8 passed; v0.1.0 waits for the user to run the release |
+| 6a Rename and channels | done | 2026-10-26 | every tier green; Apollo Dev ran from a worktree with its data in `com.rickkoh.apollo.dev` and a scripted `cv-dev` session registered only with its hub; the user re-ran the approval and a scripted `cv` session opened with no dialog; `main` is on `rickkoh/Apollo`; the folder move is left to the user |
+| 6b Changelog and release tooling | done | 2026-10-26 | preflight prints `0.1.0` and its notes; stops on a dirty tree and on a failing channel test; S7 not needed (D85); the first release run failed in Tauri's DMG script and rolled back cleanly (D89) |
+| 6c Self-update and first releases | done | 2026-10-26 | S8 passed; `v0.1.0` released (tag, Release, four assets, public feed); the installed binary matches the release DMG's; Apollo and Apollo Dev ran side by side, each session reaching only its own hub; the installed app offered `v0.1.1`, installed it and relaunched at 0.1.1 (confirmed by the user); a live `cv` session re-registered 1 s after the app restarted |
 
 ## 22. Native integration
 
