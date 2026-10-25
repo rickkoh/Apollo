@@ -1,4 +1,5 @@
 mod channel;
+mod claude_config;
 mod cli;
 mod commands;
 mod error;
@@ -9,6 +10,7 @@ mod menu;
 mod panel;
 mod plugin_cli;
 mod presence;
+mod retention;
 mod settings;
 mod state;
 mod tray;
@@ -19,12 +21,13 @@ use std::sync::Arc;
 
 use hub::StoreError;
 use hub::store::{SqliteStore, Store};
-use hub::{Hub, HubConfig, Token, discovery};
+use hub::{Hub, HubConfig, HubHandle, Token, discovery};
 use tauri::{ActivationPolicy, AppHandle, Manager, RunEvent};
 use tauri_plugin_log::{Target, TargetKind};
 use time::{Duration, OffsetDateTime};
 
 use crate::channel::Channel;
+use crate::claude_config::ClaudeConfig;
 use crate::events::{HUB_STATE, HubState, TauriEvents};
 use crate::settings::SettingsService;
 use crate::state::{AppPaths, AppState};
@@ -89,13 +92,15 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         target_new_sessions: settings.get().sessions.target_new,
         ..HubConfig::new(token.clone())
     };
+    let claude = ClaudeConfig::locate(home);
     let running = tauri::async_runtime::block_on(Hub::start(
         config,
         Box::new(store),
-        Some(presence::claude_sessions(home)),
+        Some(presence::claude_sessions(claude.clone())),
         events,
     ))?;
     discovery::write(&paths.discovery, running.port, &token)?;
+    forget_dropped_sessions_every(claude, running.handle.clone());
     let visible_at_launch = settings.get().overlay.visible_at_launch;
     let updates = (channel == Channel::Stable).then(Updates::new);
     app.manage(AppState::new(channel, paths, settings, updates, running));
@@ -116,6 +121,19 @@ fn check_for_updates_every(app: AppHandle) {
                 updates.check(&app).await;
             }
             tokio::time::sleep(updates::CHECK_EVERY).await;
+        }
+    });
+}
+
+/// Once Claude Code's folder is found, then every `PRUNE_EVERY` (D94).
+fn forget_dropped_sessions_every(claude: ClaudeConfig, hub: HubHandle) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(projects) = tauri::async_runtime::spawn_blocking(move || claude.wait().join("projects")).await else {
+            return;
+        };
+        loop {
+            retention::forget_dropped(&projects, &hub).await;
+            tokio::time::sleep(retention::PRUNE_EVERY).await;
         }
     });
 }

@@ -260,6 +260,12 @@ Record every new decision and question here.
   curling outward, a yoke, three strings and a bridge, drawn as round-capped strokes on a 32-unit grid.
   `assets/logo/render.py` renders the app icon and the menu-bar template from the same SVG paths `Logo.vue` draws;
   `tauri icon` turns the app icon into the bundle's `.icns` and PNGs.
+- **D94 Sessions follow Claude Code:** an ended session is forgotten once Claude Code keeps no transcript for it
+  (`projects/<folder>/<session id>.jsonl` in its config folder, what `--resume` reads), so Apollo's session list lasts
+  as long as Claude Code's. The shell compares once the login shell has given the config folder (D65), then hourly,
+  through the hub's `forget`; the hub is unchanged. Every project folder is read, so Claude Code's folder naming is
+  not parsed. When `projects/` is missing or holds no transcripts, the shell keeps every session and logs it, so a
+  changed layout never wipes the history. Messages keep their own retention setting.
 
 ## 3. Architecture
 
@@ -302,6 +308,8 @@ Record every new decision and question here.
 5. Create the overlay (hidden), apply the native full-screen settings, position it, show it if
    `overlay.visibleAtLaunch`.
 6. Channels already retrying (sessions started while the app was closed) register within one backoff step.
+7. Once the login shell gives Claude Code's config folder, ended sessions it keeps no transcript for are forgotten, and
+   again every hour (D94).
 
 ### 3.3 Shutdown
 
@@ -354,7 +362,9 @@ apollo/
       src/menu.rs                 app menu (Edit menu, D23)
       src/cli.rs                  cv launcher install, approval status
       src/plugin_cli.rs           voice plugin install through the claude CLI
-      src/presence.rs             the session registry, located through the login shell
+      src/presence.rs             the session registry in Claude Code's config folder
+      src/claude_config.rs        Claude Code's config folder, found through the login shell (D65)
+      src/retention.rs            ended sessions follow Claude Code's transcripts (D94)
       src/login_shell.rs          the user's login-shell environment (D42)
       src/macos.rs                native window settings (D20)
   plugin/.claude-plugin/marketplace.json   the bundled marketplace (§22.2)
@@ -1070,6 +1080,7 @@ contrast meets WCAG AA in both themes.
 | End to end | `node:test` driving `hub-dev` and two real `dist/channel.js` processes | each message reaches only its session; replies tagged; a closed session drops; hub restart → reconnect within 10 s; delivery timeout → failed |
 | Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv`; the generated `cv` run against a stub `claude` with a matching, a wrong and no approval file; approval states; plugin install steps through a fake `PluginCli` |
 | Presence | Rust tests on a temp Claude config folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file; titles: any project folder, `/rename` over Claude's own, a growing transcript, a tail without a title, a quoted title line |
+| Retention | Rust tests on a temp projects folder | transcripts from every project folder and nothing deeper; live sessions and sessions with a transcript stay; no projects folder or no transcripts removes nothing |
 | UI | component tests later, once the islands settle | |
 
 The prototype and spikes were removed after phase 3; they remain in git history (commit `d8b64d8`, `reference/`).
@@ -1405,6 +1416,9 @@ From Claude Code 2.1.310's docs and binary.
   messaging: `sessionId`, `cwd`, `name`, `entrypoint` (`cli`, `claude-vscode`), `status` (`busy`, `idle`, `shell`,
   `waiting`), `statusUpdatedAt` (Unix ms), `messagingSocketPath`, with a `.key` file beside it. The file goes when the
   session ends. Cross-session messaging is documented; this file format is not.
+- **Transcripts.** A session's conversation is `projects/<folder>/<session id>.jsonl` in the config folder: `--resume`
+  reads it and `cleanupPeriodDays` (default 30) deletes old ones. A session that ends before its first turn has none
+  (13 of the first 25 Apollo recorded). The format is undocumented.
 - **Directory marketplaces are read in place.** A plugin installed from a `directory` marketplace runs from that folder
   (`readFromFolder` in `claude plugin list --json`), with a cached copy beside it. Removing a marketplace uninstalls
   its plugins.
