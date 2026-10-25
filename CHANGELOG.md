@@ -2,6 +2,15 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.3.0 - 2026-10-25
+
+### Features
+
+- shell: ended sessions follow claude code's transcripts
+
+### Fixes
+
+- ui: show load errors instead of an empty or stuck page
 ## 0.2.0 - 2026-10-25
 
 ### Features

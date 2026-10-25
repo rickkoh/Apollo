@@ -1,5 +1,5 @@
 {
   "name": "voice",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Apollo channel: dictated messages from the Apollo overlay, replies shown back in it."
 }
