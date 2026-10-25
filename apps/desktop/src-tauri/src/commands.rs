@@ -8,9 +8,9 @@ use crate::channel::Channel;
 use crate::cli::{self, CliStatus, Launcher, Route};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
+use crate::ide_panel::{IdePanelLauncher, IdePanelStatus};
 use crate::login_shell;
 use crate::macos;
-use crate::panel::{PanelLauncher, PanelStatus};
 use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
 use crate::settings::Settings;
 use crate::state::AppState;
@@ -123,8 +123,8 @@ fn launcher(state: &AppState) -> Launcher {
     }
 }
 
-fn panel_launcher(state: &AppState) -> PanelLauncher {
-    PanelLauncher {
+fn ide_panel_launcher(state: &AppState) -> IdePanelLauncher {
+    IdePanelLauncher {
         bin_dir: state.paths.bin.clone(),
         bridge: state.paths.marketplace.join("voice/dist/panel-bridge.js"),
         discovery: state.paths.discovery.clone(),
@@ -151,12 +151,12 @@ pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> 
 #[tauri::command]
 pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    let stable = (state.channel == Channel::Stable).then(|| (panel_launcher(&state), bundled_plugin(&state)));
+    let stable = (state.channel == Channel::Stable).then(|| (ide_panel_launcher(&state), bundled_plugin(&state)));
     tauri::async_runtime::spawn_blocking(move || {
         let path = login_shell::var("PATH");
-        if let Some((panel, plugin)) = stable {
+        if let Some((ide_panel, plugin)) = stable {
             plugin.install(&ClaudeCli::new(path.clone()))?;
-            panel.install()?;
+            ide_panel.install()?;
         }
         launcher.install(path.as_deref())
     })
@@ -166,8 +166,8 @@ pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus>
 }
 
 #[tauri::command]
-pub fn panel_status(state: State<'_, AppState>) -> PanelStatus {
-    panel_launcher(&state).status()
+pub fn ide_panel_status(state: State<'_, AppState>) -> IdePanelStatus {
+    ide_panel_launcher(&state).status()
 }
 
 /// Runs `claude` twice, so only Settings asks.

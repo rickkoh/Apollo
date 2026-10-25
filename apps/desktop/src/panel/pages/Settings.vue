@@ -4,7 +4,7 @@ import * as api from '../../shared/api'
 import { useCli } from '../../shared/composables/useCli'
 import { useHub } from '../../shared/composables/useHub'
 import { useSettings } from '../../shared/composables/useSettings'
-import type { AboutInfo, ApprovalState, EditorPanel, PanelStatus, PluginStatus } from '../../shared/types'
+import type { AboutInfo, ApprovalState, EditorPanel, IdePanelStatus, PluginStatus } from '../../shared/types'
 import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
@@ -28,24 +28,24 @@ async function loadPlugin(): Promise<void> {
     }
 }
 
-const panel = ref<PanelStatus | null>(null)
-const loadPanel = async () => (panel.value = await api.panelStatus())
+const idePanel = ref<IdePanelStatus | null>(null)
+const loadIdePanel = async () => (idePanel.value = await api.idePanelStatus())
 
 api.about().then(a => {
     info.value = a
-    if (stable.value) Promise.all([loadPlugin(), loadPanel()])
+    if (stable.value) Promise.all([loadPlugin(), loadIdePanel()])
 })
 
 async function install(): Promise<void> {
     await cli.install()
-    if (stable.value) await Promise.all([loadPlugin(), loadPanel()])
+    if (stable.value) await Promise.all([loadPlugin(), loadIdePanel()])
 }
 
-const panelHint = computed(() => {
-    if (!panel.value) return 'Checking…'
-    if (panel.value.foreign) return "A cv-panel that Apollo didn't write is in the way"
-    if (!panel.value.installed) return 'Not installed: click Install above'
-    return panel.value.upToDate ? 'Installed' : 'Installed, a reinstall is due'
+const idePanelHint = computed(() => {
+    if (!idePanel.value) return 'Checking…'
+    if (idePanel.value.foreign) return "A cv-panel that Apollo didn't write is in the way"
+    if (!idePanel.value.installed) return 'Not installed: click Install above'
+    return idePanel.value.upToDate ? 'Installed' : 'Installed, a reinstall is due'
 })
 
 function editorHint(editor: EditorPanel): string {
@@ -61,7 +61,7 @@ function editorHint(editor: EditorPanel): string {
 
 const copiedSetting = ref(false)
 async function copySetting(): Promise<void> {
-    await navigator.clipboard.writeText(panel.value?.setting ?? '')
+    await navigator.clipboard.writeText(idePanel.value?.setting ?? '')
     copiedSetting.value = true
     setTimeout(() => (copiedSetting.value = false), 1500)
 }
@@ -207,14 +207,14 @@ async function clearAll(): Promise<void> {
     <template v-if="stable && props.section === 'editors'">
         <h1>Cursor and VS Code panels</h1>
         <Card>
-            <SettingRow label="cv-panel" :hint="panelHint" />
-            <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
+            <SettingRow label="cv-panel" :hint="idePanelHint" />
+            <SettingRow v-for="editor in idePanel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
                 <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
                     {{ copiedSetting ? 'Copied' : 'Copy' }}
                 </button>
             </SettingRow>
-            <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
-            <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
+            <pre v-if="idePanel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ idePanel.setting }}</code></pre>
+            <p v-if="idePanel && idePanel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
         </Card>
     </template>
 

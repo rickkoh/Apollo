@@ -36,7 +36,7 @@ pub struct EditorPanel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct PanelStatus {
+pub struct IdePanelStatus {
     pub installed: bool,
     pub up_to_date: bool,
     pub path: String,
@@ -74,7 +74,7 @@ fn configured_wrapper(settings: &str) -> Option<String> {
         })
 }
 
-pub struct PanelLauncher {
+pub struct IdePanelLauncher {
     pub bin_dir: PathBuf,
     /// The bundled `panel-bridge.js`.
     pub bridge: PathBuf,
@@ -83,7 +83,7 @@ pub struct PanelLauncher {
     pub app_support: PathBuf,
 }
 
-impl PanelLauncher {
+impl IdePanelLauncher {
     fn file(&self) -> OurScript {
         OurScript {
             target: self.bin_dir.join(COMMAND),
@@ -112,11 +112,11 @@ impl PanelLauncher {
         })
     }
 
-    pub fn status(&self) -> PanelStatus {
+    pub fn status(&self) -> IdePanelStatus {
         let file = self.file();
         let state = file.state(&script(&self.bridge, &self.discovery));
         let path = file.target.to_string_lossy().into_owned();
-        PanelStatus {
+        IdePanelStatus {
             installed: state.installed,
             up_to_date: state.up_to_date,
             foreign: state.foreign,
@@ -129,7 +129,7 @@ impl PanelLauncher {
         }
     }
 
-    pub fn install(&self) -> Result<PanelStatus, CliError> {
+    pub fn install(&self) -> Result<IdePanelStatus, CliError> {
         self.file().write(&script(&self.bridge, &self.discovery))?;
         Ok(self.status())
     }
@@ -141,8 +141,8 @@ mod tests {
 
     use super::*;
 
-    fn launcher(dir: &tempfile::TempDir) -> PanelLauncher {
-        PanelLauncher {
+    fn launcher(dir: &tempfile::TempDir) -> IdePanelLauncher {
+        IdePanelLauncher {
             bin_dir: dir.path().join("bin"),
             bridge: PathBuf::from("/Apps/Apollo.app/plugin/voice/dist/panel-bridge.js"),
             discovery: dir.path().join("data/hub.json"),
@@ -232,7 +232,7 @@ mod tests {
         let ours = l.status().path;
         let cursor = l.app_support.join("Cursor/User");
         fs::create_dir_all(&cursor).unwrap();
-        let editors = |l: &PanelLauncher| {
+        let editors = |l: &IdePanelLauncher| {
             l.status()
                 .editors
                 .iter()

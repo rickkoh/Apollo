@@ -22,7 +22,7 @@
     "allow-cli-status",
     "allow-install-cli",
     "allow-plugin-status",
-    "allow-panel-status",
+    "allow-ide-panel-status",
     "allow-about",
     "allow-reveal-data-folder",
     "allow-update-status",

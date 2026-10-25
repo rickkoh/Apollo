@@ -367,10 +367,11 @@ apollo/
       src/commands.rs             Tauri commands
       src/events.rs               HubEvents → Tauri emitter
       src/windows/overlay.rs      overlay window: build, position, resize
-      src/windows/panel.rs        panel window: show/hide, Dock policy
+      src/windows/panel.rs        control panel window: show/hide, Dock policy
       src/tray.rs                 menu bar item and menu
       src/menu.rs                 app menu (Edit menu, D23)
       src/cli.rs                  cv launcher install, approval status
+      src/ide_panel.rs            cv-panel launcher, the editors' panel wrapper setting (§24)
       src/plugin_cli.rs           voice plugin install through the claude CLI
       src/presence.rs             the session registry in Claude Code's config folder
       src/claude_config.rs        Claude Code's config folder, found through the login shell (D65)
@@ -842,6 +843,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `cli_status` | | `CliStatus { installed, upToDate, path, onPath, foreign, approval, approvalCommand }` | panel |
 | `install_cli` | | `CliStatus` (sets up the plugin, then writes `cv`) | panel |
 | `plugin_status` | | `PluginStatus { installed, upToDate }` | panel |
+| `ide_panel_status` | | `IdePanelStatus { installed, upToDate, path, foreign, setting, editors }` (D70) | panel |
 | `recent_messages` | `limit` | `Message[]` | panel |
 | `clear_history` | | `()` | panel |
 | `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |

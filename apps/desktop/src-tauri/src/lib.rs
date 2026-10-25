@@ -4,10 +4,10 @@ mod cli;
 mod commands;
 mod error;
 mod events;
+mod ide_panel;
 mod login_shell;
 mod macos;
 mod menu;
-mod panel;
 mod plugin_cli;
 mod presence;
 mod retention;
@@ -198,7 +198,7 @@ pub fn run() {
             commands::cli_status,
             commands::install_cli,
             commands::plugin_status,
-            commands::panel_status,
+            commands::ide_panel_status,
             commands::about,
             commands::reveal_data_folder,
             commands::update_status,

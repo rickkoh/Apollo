@@ -7,11 +7,11 @@ import type {
     CliStatus,
     HubState,
     HubStatus,
+    IdePanelStatus,
     Message,
     MessageId,
     MessageUpdated,
     OverlayVisibility,
-    PanelStatus,
     PluginStatus,
     SessionId,
     SessionView,
@@ -62,7 +62,7 @@ export const setOverlayVisible = (visible: boolean) => call<void>('set_overlay_v
 export const cliStatus = () => call<CliStatus>('cli_status')
 export const installCli = () => call<CliStatus>('install_cli')
 export const pluginStatus = () => call<PluginStatus>('plugin_status')
-export const panelStatus = () => call<PanelStatus>('panel_status')
+export const idePanelStatus = () => call<IdePanelStatus>('ide_panel_status')
 export const about = () => call<AboutInfo>('about')
 export const revealDataFolder = () => call<void>('reveal_data_folder')
 export const updateStatus = () => call<UpdateStatus | null>('update_status')
