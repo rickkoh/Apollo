@@ -37,6 +37,7 @@ run() {
 }
 
 check_tests() {
+    run "channel build" npm --prefix plugin/voice run -s build
     run "rustfmt" cargo fmt --check
     run "clippy" cargo clippy --workspace --quiet -- -D warnings
     run "rust tests" cargo test --workspace --quiet
