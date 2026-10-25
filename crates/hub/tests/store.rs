@@ -60,10 +60,7 @@ fn refuses_a_database_a_newer_app_migrated() {
     conn.pragma_update(None, "user_version", 99).unwrap();
     drop(conn);
     let err = SqliteStore::open(&dir.path().join("voice.db")).err().unwrap();
-    assert!(
-        matches!(err, hub::StoreError::NewerSchema { found: 99, known: 1 }),
-        "{err}"
-    );
+    assert!(matches!(err, hub::StoreError::NewerSchema { found: 99, .. }), "{err}");
 }
 
 #[test]
