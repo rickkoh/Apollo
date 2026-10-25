@@ -153,7 +153,7 @@ Record every new decision and question here.
   major; `CHANGELOG.md` is committed and a release's notes are its section.
 - **D55 Releases live in a private GitLab project (default branch `master`):** an annotated
   `vX.Y.Z` tag; the build files in the generic package registry (`apollo/X.Y.Z/`); a GitLab Release per tag with the
-  notes and links to those files; the update feed `release/latest.json` committed in the release commit (§23).
+  notes and links to those files; the update feed in the same registry (D71, §23).
 - **D56 Updates use `tauri-plugin-updater`:** the feed is checked at launch, every 6 hours and on demand; the menu bar
   and Settings → About offer "Update to vX.Y.Z" with the notes; install and relaunch happen on click. The updater key
   pair (minisign) stays outside the repo; its public key is in `tauri.conf.json`. The dev channel never updates.
@@ -191,6 +191,25 @@ Record every new decision and question here.
 - **D70 The app installs `cv-panel` beside `cv` and only reads the editors' settings:** Settings shows, for Cursor and
   VS Code, whether `claudeCode.claudeProcessWrapper` points at it, with the line to add and Copy; a different wrapper
   already set is reported and left alone.
+- **D71 The update feed lives in the generic package registry, not in the repository:** package `apollo-feed`, version
+  `latest`, file `latest.json`, uploaded as each release's last step; GitLab serves the newest file of that name. The
+  feed and the downloads share one route and one header, so the deploy token needs only `read_package_registry`.
+  Replaces D55's committed `release/latest.json`.
+- **D72 One version for every part:** `workspace.package.version`, both `package.json` files and `plugin.json` move
+  together. The MCP server reads its version from `package.json`, `release.sh` bumps them all, and a channel test
+  checks they agree. Extends D53.
+- **D73 The changelog lists Features, Fixes and Performance** (`feat`, `fix`, `perf`); other types are left out. Each
+  release regenerates `CHANGELOG.md` from the history (`git cliff --tag`), so the file is never edited by hand; an
+  unclear line is fixed by a better subject next time.
+- **D74 The release checks are code:** `scripts/release.sh preflight` checks the branch, the tree, `origin`, every test
+  tier and lint, then prints the next version and its notes; `scripts/release.sh <version>` repeats the branch and tree
+  checks and releases. The `release` skill runs the first, shows its output, asks, and runs the second.
+- **D75 Apollo Dev installs `cv-dev`, never `cv`:** the working copy's `plugin/voice` with `--plugin-dir` and the
+  development flag, pointed at Apollo Dev's discovery file unless the variable is already set (so `hub-dev` still
+  works). `bin/cv-dev` goes. Apollo Dev installs no panel wrapper and runs no plugin installer; panels reach the stable
+  app.
+- **D76 The stable app can open at login:** Settings → General, off by default, through macOS Login Items
+  (`tauri-plugin-autostart`). Apollo Dev doesn't offer it. Moved from phase 7.
 
 ## 3. Architecture
 
@@ -1098,7 +1117,7 @@ After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater repla
 
 ### Phase 7 — later
 
-Global shortcuts (R9), focus hand-back after a send (Q3), launch at login, a screen-change observer, multiple
+Global shortcuts (R9), focus hand-back after a send (Q3), a screen-change observer, multiple
 displays (Q13), the final logo (Q14), signing and notarisation.
 
 ## 16. Constraints
@@ -1134,8 +1153,8 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q3** After a send, should focus return to the app you were in? (Phase 7.)
 - **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
   wave)? Phase 7; phases 1–6 use the D27 placeholder.
-- **Q18** Which URL and header does GitLab 16.11 accept for a private project's raw file and generic package with a
-  deploy token? (S7.)
+- **Q18** Which URL and header does GitLab 16.11 accept for a private project's generic package file with a deploy
+  token? (S7; D71 dropped the raw file.)
 - **Q20** Why did a panel session started through the first S6 wrapper not load the plugin from `--settings`, when a
   headless session with the same flags did? The bridge's log answers it if it recurs.
 - **Q19** A message that arrives mid-turn reaches Claude as a queued command at the next tool boundary, and in S5 Claude
@@ -1156,8 +1175,8 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S4 channel approval | passed: `per-session` | the drop-in file was read and `channelsEnabled` wasn't needed; `--settings` enabled the installed, user-disabled plugin and `--channels` loaded it with no dialog (debug log: `Channel notifications registered`); a dictation round-tripped; a plain `claude` started no `channel.js`. Without the file: "plugin voice@voice-bridge is not on the approved channels allowlist (use --dangerously-load-development-channels for local dev)", and the channel still registered with the hub (D64) |
 | S5 session registry activity | passed | the channel's parent pid names `~/.claude/sessions/<pid>.json`; around a foreground `sleep 15`, `status` read `idle → busy → idle` with `statusUpdatedAt` (Unix ms) moving each time. Two more values: `shell` (the turn ended, a background command still runs) and `waiting` (a permission prompt). A second message sent mid-turn queued and joined the same turn at its next tool boundary, with no `idle` between (Q19). The file goes when the session ends |
 | S6 IDE panel channel | passed | the wrapper call shape, `channel_enable` and unprompted turns (§24.1); a prototype bridge in Cursor: three panel sessions enabled on the first attempt, dictations answered in the overlay, closing a tab ended the session |
-| S7 GitLab feed and package access | not run | Q18: fetch a raw file and a generic package file from the GitLab project with a deploy token |
-| S8 in-place update | not run | the updater swaps an ad-hoc-signed `/Applications/Apollo.app` and relaunches; Gatekeeper stays quiet |
+| S7 GitLab feed and package access | not run | Q18: upload a probe file to `apollo-s7/0.0.0/` and fetch it with a deploy token; delete it after |
+| S8 in-place update | not run | a throwaway "Apollo S8" (own bundle id) in /Applications, fed from a local feed on 127.0.0.1 with the real key: the updater swaps it and relaunches; Gatekeeper and the Keychain stay quiet |
 
 **S3** (~45 min), with a full-screen app (for example Chrome full screen), and with
 `ActivationPolicy::Accessory` plus the §9.6 Edit menu in place: S2 ran as a regular app, so whether ⌘V reaches the
@@ -1237,6 +1256,29 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 - **Hub-down check:** D29.
 - **ts-rs:** D30.
 
+Phase 6 question round 2026-10-26, asked in chat (no AskUserQuestion in that session); every recommended option taken.
+Decisions D71–D76 came from it.
+
+- **Order:** 6b tooling, S7, the channel split, 6c and S8, then the rename once phase 5 and `overlay-settings` are in
+  `master`, the approval re-run and the folder move, then the push and the first releases. Work happens in
+  `.worktrees/apollo-release`; nothing is edited or committed in the main checkout until the fast-forward.
+- **Numbering:** phase 6 decisions start at D71 and questions at Q21 (D61–D70, Q19 and Q20 were taken).
+- **Names during the split and 6c:** today's names (`VOICE_BRIDGE_*`, `voice-bridge`); only the dev identity is new.
+  The rename is one mechanical commit.
+- **S7:** the deploy token is stored by the user under Keychain service `apollo-s7-probe` and read straight into the
+  request header, never printed; the probe file upload is asked for first.
+- **Updater key:** `~/.tauri/apollo-updater.key` (0600), its password in the login Keychain, both read by
+  `release.sh`; asked for again right before generating. Lose it and installed apps need one manual reinstall.
+- **S8:** a throwaway "Apollo S8" and a local feed; nothing uploaded. A Keychain prompt after the update stops the run
+  with the evidence.
+- **Old install after the rename:** removed by the user once with given commands; no legacy code.
+- **Folder move:** by the user, with every session in the folder closed; Claude gives the commands (move,
+  `git worktree repair`, the memory folder, a clean rebuild).
+- **Fast-forward:** once phase 5's session has stopped, Claude fast-forwards `main` from the main checkout, renames it
+  to `master`, adds `origin` and pushes. Tags and GitLab Releases are asked for each time.
+- **`tauri dev` in the worktree after the split:** on port 1421 through a command-line override, without asking.
+- **Manual checks:** steps as chat text, then one numbered pass/fail list answered in chat.
+
 ### Status
 
 | Phase | Status | Date | Notes |
@@ -1248,7 +1290,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 5 Native integration | done | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green; manual checks confirmed by the user |
 | 5b IDE panels | done | 2026-10-26 | S6 passed with a prototype bridge; the bundled bridge, panel instructions, `cv-panel` and the Settings section are in; every automated check green; manual checks confirmed by the user |
 | 6a Rename and channels | not started | | |
-| 6b Changelog and release tooling | not started | | |
+| 6b Changelog and release tooling | in progress | 2026-10-26 | |
 | 6c Self-update and first releases | not started | | |
 
 ## 22. Native integration
@@ -1410,16 +1452,17 @@ Phase 6 turns the working copy into an installed, self-updating Apollo while dev
 
 ### 23.2 A release
 
-1. The `release` skill checks: on `master`, clean tree, in step with `origin`, every test tier and lint green.
-2. `git cliff --bumped-version` gives the version, `git cliff --unreleased` the notes. Shown to the user; nothing goes
-   on until they agree.
-3. `scripts/release.sh <version>`: bump `workspace.package.version`, prepend the notes to `CHANGELOG.md`, `tauri build`
-   (stable config, ad-hoc signed, updater artifacts on), upload `Apollo.app.tar.gz`, its `.sig` and the `.dmg` to
-   `apollo/<version>/` in the generic package registry, write `release/latest.json`, commit `chore(release): v<version>`,
-   tag, push `master` and the tag, and create the GitLab Release with the notes and links to the three files.
-4. Never move or delete a pushed tag; a broken release is fixed by the next one.
+1. `scripts/release.sh preflight` (D74): on `master`, clean tree, in step with `origin`, every test tier and lint
+   green; then `git cliff --bumped-version` gives the version and `git cliff --unreleased --bump` the notes. The
+   `release` skill shows them; nothing goes on until the user agrees.
+2. `scripts/release.sh <version>`: bump every version (D72), regenerate `CHANGELOG.md` (D73), `tauri build` (stable
+   config, ad-hoc signed, updater artifacts on), upload `Apollo.app.tar.gz`, its `.sig` and the `.dmg` to
+   `apollo/<version>/` in the generic package registry, commit `chore(release): v<version>`, tag, push `master` and the
+   tag, create the GitLab Release with the notes and links to the three files, and upload the feed last (D71), so an
+   installed app never sees a version whose files or tag are missing.
+3. Never move or delete a pushed tag; a broken release is fixed by the next one.
 
-`release/latest.json`, in the updater's static format:
+`latest.json`, in the updater's static format:
 
 ```json
 {
