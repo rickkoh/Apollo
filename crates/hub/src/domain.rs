@@ -90,3 +90,34 @@ pub struct HubStatus {
     pub live_sessions: u32,
     pub target: Option<SessionId>,
 }
+
+/// Shared secret a channel presents in `hello`; 32 random bytes as hex.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Token(String);
+
+impl Token {
+    pub fn generate() -> Self {
+        let mut bytes = [0u8; 32];
+        getrandom::fill(&mut bytes).expect("the OS random source is unavailable");
+        Self(bytes.iter().map(|b| format!("{b:02x}")).collect())
+    }
+
+    pub fn from_hex(hex: impl Into<String>) -> Self {
+        Self(hex.into())
+    }
+
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+
+    pub fn matches(&self, presented: &str) -> bool {
+        use subtle::ConstantTimeEq;
+        self.0.as_bytes().ct_eq(presented.as_bytes()).into()
+    }
+}
+
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Token(..)")
+    }
+}

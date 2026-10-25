@@ -1,0 +1,4 @@
+#!/bin/sh
+# voice-bridge launcher (development): loads plugin/voice from this checkout
+root=$(cd "$(dirname "$0")/.." && pwd)
+exec claude --plugin-dir "$root/plugin/voice" --dangerously-load-development-channels plugin:voice@inline "$@"

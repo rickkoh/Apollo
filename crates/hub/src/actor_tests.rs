@@ -1,0 +1,392 @@
+use std::sync::Mutex;
+use std::time::Duration;
+
+use super::*;
+use crate::HubHandle;
+use crate::domain::Token;
+use crate::store::MemoryStore;
+
+#[derive(Debug, Clone, PartialEq)]
+enum Event {
+    Sessions(Vec<SessionView>),
+    Target(Option<SessionId>),
+    Added(Message),
+    Updated(MessageId, DeliveryStatus, Option<String>),
+}
+
+#[derive(Default)]
+struct Recorder(Mutex<Vec<Event>>);
+
+impl Recorder {
+    fn take(&self) -> Vec<Event> {
+        std::mem::take(&mut self.0.lock().unwrap())
+    }
+}
+
+impl HubEvents for Recorder {
+    fn sessions_changed(&self, sessions: &[SessionView]) {
+        self.0.lock().unwrap().push(Event::Sessions(sessions.to_vec()));
+    }
+    fn target_changed(&self, target: Option<&SessionId>) {
+        self.0.lock().unwrap().push(Event::Target(target.cloned()));
+    }
+    fn message_added(&self, message: &Message) {
+        self.0.lock().unwrap().push(Event::Added(message.clone()));
+    }
+    fn message_updated(&self, id: MessageId, status: DeliveryStatus, detail: Option<&str>) {
+        self.0
+            .lock()
+            .unwrap()
+            .push(Event::Updated(id, status, detail.map(str::to_owned)));
+    }
+}
+
+struct Harness {
+    commands: mpsc::Sender<Command>,
+    handle: HubHandle,
+    events: Arc<Recorder>,
+    next_conn: u64,
+}
+
+struct Peer {
+    conn: u64,
+    rx: mpsc::UnboundedReceiver<Outbound>,
+}
+
+impl Peer {
+    fn drain(&mut self) -> Vec<Outbound> {
+        std::iter::from_fn(|| self.rx.try_recv().ok()).collect()
+    }
+}
+
+fn sid(s: &str) -> SessionId {
+    SessionId(s.into())
+}
+
+fn harness_with(store: MemoryStore, delivery_timeout: Duration) -> Harness {
+    let mut config = HubConfig::new(Token::generate());
+    config.delivery_timeout = delivery_timeout;
+    let events = Arc::new(Recorder::default());
+    let actor = HubActor::new(Arc::new(config), 4242, Box::new(store), events.clone()).unwrap();
+    let (commands, inbox) = mpsc::channel(16);
+    std::thread::spawn(move || actor.run(inbox));
+    Harness {
+        handle: HubHandle {
+            commands: commands.clone(),
+        },
+        commands,
+        events,
+        next_conn: 1,
+    }
+}
+
+fn harness() -> Harness {
+    harness_with(MemoryStore::new(), Duration::from_secs(5))
+}
+
+impl Harness {
+    async fn register(&mut self, id: &str, cwd: &str) -> (String, Peer) {
+        let conn = self.next_conn;
+        self.next_conn += 1;
+        let (link, rx) = mpsc::unbounded_channel();
+        let (answer, title) = oneshot::channel();
+        let info = SessionInfo {
+            id: sid(id),
+            cwd: cwd.into(),
+            claude_pid: 1,
+            started_at: OffsetDateTime::now_utc(),
+        };
+        self.commands
+            .send(Command::Register {
+                info,
+                conn,
+                link,
+                answer,
+            })
+            .await
+            .unwrap();
+        (title.await.unwrap().unwrap(), Peer { conn, rx })
+    }
+
+    async fn command(&self, command: Command) {
+        self.commands.send(command).await.unwrap();
+        self.handle.status().await.unwrap();
+    }
+
+    async fn view(&self, id: &str) -> SessionView {
+        self.handle
+            .sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|v| v.id == sid(id))
+            .unwrap()
+    }
+}
+
+#[tokio::test]
+async fn first_session_becomes_target_with_folder_title() {
+    let mut h = harness();
+    let (title, _a) = h.register("aaaa1", "/work/orders.service").await;
+    assert_eq!(title, "orders.service");
+    let events = h.events.take();
+    assert!(events.contains(&Event::Target(Some(sid("aaaa1")))));
+    assert!(matches!(events.last(), Some(Event::Sessions(v)) if v[0].live && v[0].is_target));
+}
+
+#[tokio::test]
+async fn target_never_switches_away_from_a_live_session() {
+    let mut h = harness();
+    let (_, _a) = h.register("a", "/w/a").await;
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("a")));
+}
+
+#[tokio::test]
+async fn registering_takes_over_a_target_that_is_not_live() {
+    let mut store = MemoryStore::new();
+    store.set_target(Some(&sid("gone"))).unwrap();
+    let mut h = harness_with(store, Duration::from_secs(5));
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("gone")));
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("b")));
+}
+
+#[tokio::test]
+async fn restored_target_stays_target_when_it_registers() {
+    let mut store = MemoryStore::new();
+    store.set_target(Some(&sid("a"))).unwrap();
+    let mut h = harness_with(store, Duration::from_secs(5));
+    let (_, _a) = h.register("a", "/w/a").await;
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("a")));
+}
+
+#[tokio::test]
+async fn a_new_connection_replaces_the_old_one() {
+    let mut h = harness();
+    let (_, mut old) = h.register("a", "/w/a").await;
+    let (_, _new) = h.register("a", "/w/a").await;
+    assert!(matches!(
+        &old.drain()[..],
+        [
+            Outbound::Frame(HubFrame::Error {
+                code: ErrorCode::Replaced,
+                ..
+            }),
+            Outbound::Close
+        ]
+    ));
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: old.conn,
+    })
+    .await;
+    assert!(
+        h.view("a").await.live,
+        "the stale connection's close must not unregister the new one"
+    );
+}
+
+#[tokio::test]
+async fn send_errors() {
+    let mut h = harness();
+    assert!(matches!(h.handle.send("hi".into()).await, Err(SendError::NoTarget)));
+    let (_, a) = h.register("a", "/w/alpha").await;
+    assert!(matches!(h.handle.send("   ".into()).await, Err(SendError::Empty)));
+    assert!(matches!(
+        h.handle.send("x".repeat(16 * 1024 + 1)).await,
+        Err(SendError::TooLarge)
+    ));
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    assert!(matches!(h.handle.send("hi".into()).await, Err(SendError::TargetOffline { title }) if title == "alpha"));
+}
+
+#[tokio::test]
+async fn send_reaches_only_the_target_and_delivered_marks_it() {
+    let mut h = harness();
+    let (_, mut a) = h.register("a", "/w/a").await;
+    let (_, mut b) = h.register("b", "/w/b").await;
+    h.events.take();
+
+    let message = h.handle.send(" click Settle ".into()).await.unwrap();
+    assert_eq!(
+        (message.text.as_str(), message.status),
+        ("click Settle", DeliveryStatus::Queued)
+    );
+    assert!(matches!(
+        &a.drain()[..],
+        [Outbound::Frame(HubFrame::Deliver { id, text, .. })] if *id == message.id && text == "click Settle"
+    ));
+    assert!(b.drain().is_empty());
+
+    h.command(Command::Delivered {
+        session: sid("b"),
+        id: message.id,
+    })
+    .await;
+    assert!(
+        !h.events.take().iter().any(|e| matches!(e, Event::Updated(..))),
+        "another session cannot ack it"
+    );
+
+    h.command(Command::Delivered {
+        session: sid("a"),
+        id: message.id,
+    })
+    .await;
+    assert!(
+        h.events
+            .take()
+            .contains(&Event::Updated(message.id, DeliveryStatus::Delivered, None))
+    );
+    let history = h.handle.history(sid("a"), None, 10).await.unwrap();
+    assert_eq!(history[0].status, DeliveryStatus::Delivered);
+}
+
+#[tokio::test]
+async fn unacknowledged_messages_fail_after_the_timeout() {
+    let mut h = harness_with(MemoryStore::new(), Duration::from_millis(30));
+    let (_, _a) = h.register("a", "/w/a").await;
+    let message = h.handle.send("hello".into()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    h.command(Command::Tick).await;
+    let detail = Some("no acknowledgement".to_owned());
+    assert!(
+        h.events
+            .take()
+            .contains(&Event::Updated(message.id, DeliveryStatus::Failed, detail.clone()))
+    );
+    assert_eq!(h.handle.history(sid("a"), None, 1).await.unwrap()[0].detail, detail);
+}
+
+#[tokio::test]
+async fn a_disconnect_fails_its_pending_messages() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    let message = h.handle.send("hello".into()).await.unwrap();
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    let detail = Some("session disconnected".to_owned());
+    assert!(
+        h.events
+            .take()
+            .contains(&Event::Updated(message.id, DeliveryStatus::Failed, detail))
+    );
+    assert!(!h.view("a").await.live);
+}
+
+#[tokio::test]
+async fn replies_are_stored_counted_unread_and_marked_read() {
+    let mut h = harness();
+    let (_, _a) = h.register("a", "/w/a").await;
+    h.events.take();
+    h.command(Command::Reply {
+        session: sid("a"),
+        text: "Clicked it.".into(),
+    })
+    .await;
+    let events = h.events.take();
+    let Some(Event::Added(reply)) = events.iter().find(|e| matches!(e, Event::Added(_))).cloned() else {
+        panic!("no message_added")
+    };
+    assert_eq!(
+        (reply.direction, reply.status),
+        (Direction::FromSession, DeliveryStatus::Received)
+    );
+    assert_eq!(h.view("a").await.unread, 1);
+    h.handle.mark_read(sid("a"), reply.id).await.unwrap();
+    assert_eq!(h.view("a").await.unread, 0);
+}
+
+#[tokio::test]
+async fn set_target_rules() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert!(matches!(
+        h.handle.set_target(sid("zzz")).await,
+        Err(HubError::UnknownSession)
+    ));
+    h.handle.set_target(sid("b")).await.unwrap();
+    assert!(h.events.take().contains(&Event::Target(Some(sid("b")))));
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    assert!(matches!(
+        h.handle.set_target(sid("a")).await,
+        Err(HubError::SessionOffline)
+    ));
+}
+
+#[tokio::test]
+async fn live_sessions_sharing_a_title_get_an_id_suffix() {
+    let mut h = harness();
+    let (first, _a) = h.register("abcd1111", "/x/repo").await;
+    let (second, _b) = h.register("efgh2222", "/y/repo").await;
+    assert_eq!(first, "repo");
+    assert_eq!(second, "repo (efgh)");
+    assert_eq!(h.view("abcd1111").await.title, "repo (abcd)");
+}
+
+#[tokio::test]
+async fn rename_overrides_the_title_and_empty_clears_it() {
+    let mut h = harness();
+    let (_, _a) = h.register("a", "/w/alpha").await;
+    h.handle.rename(sid("a"), Some(" Payments ".into())).await.unwrap();
+    assert_eq!(h.view("a").await.title, "Payments");
+    h.handle.rename(sid("a"), Some("  ".into())).await.unwrap();
+    assert_eq!(h.view("a").await.title, "alpha");
+    assert!(matches!(
+        h.handle.rename(sid("nope"), None).await,
+        Err(HubError::UnknownSession)
+    ));
+}
+
+#[tokio::test]
+async fn forget_refuses_a_live_session_and_removes_an_ended_one() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    h.handle.send("hi".into()).await.unwrap();
+    assert!(matches!(h.handle.forget(sid("a")).await, Err(HubError::SessionLive)));
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    h.events.take();
+    h.handle.forget(sid("a")).await.unwrap();
+    assert!(h.events.take().contains(&Event::Target(None)));
+    assert!(h.handle.sessions().await.unwrap().is_empty());
+    assert!(h.handle.history(sid("a"), None, 10).await.unwrap().is_empty());
+    assert!(matches!(h.handle.forget(sid("a")).await, Err(HubError::UnknownSession)));
+}
+
+#[tokio::test]
+async fn status_reports_port_live_count_and_target() {
+    let mut h = harness();
+    let (_, _a) = h.register("a", "/w/a").await;
+    let status = h.handle.status().await.unwrap();
+    assert_eq!(
+        (status.port, status.live_sessions, status.target),
+        (4242, 1, Some(sid("a")))
+    );
+}
+
+#[tokio::test]
+async fn clear_history_removes_every_message() {
+    let mut h = harness();
+    let (_, _a) = h.register("a", "/w/a").await;
+    h.handle.send("hi".into()).await.unwrap();
+    h.handle.clear_history().await.unwrap();
+    assert!(h.handle.history(sid("a"), None, 10).await.unwrap().is_empty());
+}

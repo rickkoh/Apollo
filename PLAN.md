@@ -81,6 +81,14 @@ Record every new decision and question here.
 - **D28 Q15 decision rule: the non-activating panel only if it passes every S3 step,** otherwise the regular window.
 - **D29 Debug builds get a "Stop hub" command** (menu-bar item, debug only) so the hub-down state (red dot) can be
   observed while the app runs.
+- **D31 Setting an ended session as target fails with `SessionOffline`** (`HubError::SessionOffline`, UI code
+  `target_offline`), distinct from `UnknownSession`, so the UI can say which.
+- **D32 One task per channel connection runs a `select!` over inbound frames, outbound frames and the ping timer**
+  (instead of two tasks): one owner for the socket's lifetime and its single `Unregister`.
+- **D33 The store gains `fail_all_queued` (startup crash recovery) and `clear_history` (Settings → Clear all
+  history),** and the handle gains `clear_history`.
+- **D34 Q11: `claude --resume` keeps the session id,** so a resumed session re-registers as the same session and its
+  history continues (observed in phase 2's manual check).
 - **D30 ts-rs exports from every crate into one `shared/types/`** via `TS_RS_EXPORT_DIR` in `.cargo/config.toml`,
   including the shell's `Settings`, `UiError` and `CliStatus`.
 
@@ -952,15 +960,13 @@ a screen-change observer, multiple displays (Q13), the final logo (Q14), signing
 - **Q3** After a send, should focus return to the app you were in? (Phase 5.)
 - **Q5** Beyond replies, should the app show Claude's activity (busy or idle, tool calls) from plugin hooks?
   (Phase 5.)
-- **Q11** Does `claude --resume` keep the same session id, so a resumed session continues its history? Verified in the
-  phase 2 manual check (no design change either way: the id comes from the environment).
 - **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
   wave)? Phase 5; phases 1–4 use the D27 placeholder.
 - **Q15** Overlay window type (S3): a regular window, or a non-activating panel? Rule in D28; S3 records the result.
 
 Answered: Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q6 (full-screen
 support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local app data,
-R7), Q10 (name: Voice Bridge for now), Q12 (D25), Q13 (D26).
+R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26).
 
 ## 19. Spikes
 
@@ -1034,6 +1040,6 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | Phase | Status | Date | Notes |
 |---|---|---|---|
 | 1 Skeleton | done | 2026-10-25 | all four checks passed; window check by CoreGraphics window list (no screen-capture permission) |
-| 2 Hub and channel | not started | | |
+| 2 Hub and channel | done | 2026-10-25 | 44 Rust + 15 channel + 4 end-to-end tests green; manual two-session check and Q11 passed |
 | 3 S3 and overlay | not started | | |
 | 4 Control panel | not started | | |
