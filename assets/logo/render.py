@@ -1,7 +1,62 @@
-"""Renders the placeholder "island wave" logo (PLAN.md D27) without external tools."""
+"""Renders the lyre logo (PLAN.md D89) without external tools."""
+import re
 import struct
 import sys
 import zlib
+
+# SVG paths on a 32-unit grid with their stroke widths; Logo.vue draws the same paths.
+STROKES = (
+    ("M 7.5 3.5 C 9.5 4 10.5 5.5 10.5 7.5 C 10.5 12 7.5 13.5 7.5 18.5 C 7.5 23.5 10.5 27.5 16 27.5 "
+     "C 21.5 27.5 24.5 23.5 24.5 18.5 C 24.5 13.5 21.5 12 21.5 7.5 C 21.5 5.5 22.5 4 24.5 3.5", 2.4),
+    ("M 7.5 9 L 24.5 9 M 11.5 22.5 L 20.5 22.5", 2.4),
+    ("M 13 9 L 13 22 M 16 9 L 16 22 M 19 9 L 19 22", 1.3),
+)
+
+
+def segments():
+    out = []
+    for d, width in STROKES:
+        toks = re.findall(r"[MLC]|[-\d.]+", d)
+        i = 0
+        while i < len(toks):
+            n = 6 if toks[i] == "C" else 2
+            v = [float(t) for t in toks[i + 1:i + 1 + n]]
+            if toks[i] == "M":
+                pen = v
+            elif toks[i] == "L":
+                out.append((*pen, *v, width / 2))
+                pen = v
+            else:
+                p = (pen, v[0:2], v[2:4], v[4:6])
+                for k in range(1, 17):
+                    t = k / 16
+                    q = [(1 - t) ** 3 * p[0][j] + 3 * (1 - t) ** 2 * t * p[1][j] + 3 * (1 - t) * t * t * p[2][j]
+                         + t ** 3 * p[3][j] for j in (0, 1)]
+                    out.append((*pen, *q, width / 2))
+                    pen = q
+            i += 1 + n
+    return out
+
+
+def bucket(segs):
+    return [[[s for s in segs
+              if min(s[0], s[2]) - s[4] <= x + 1 and max(s[0], s[2]) + s[4] >= x
+              and min(s[1], s[3]) - s[4] <= y + 1 and max(s[1], s[3]) + s[4] >= y]
+             for x in range(32)] for y in range(32)]
+
+
+CELLS = bucket(segments())
+
+
+def lyre(x, y):
+    if not (0 <= x < 32 and 0 <= y < 32):
+        return False
+    for ax, ay, bx, by, r in CELLS[int(y)][int(x)]:
+        dx, dy = bx - ax, by - ay
+        t = min(max(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy), 0), 1)
+        if (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2 <= r * r:
+            return True
+    return False
 
 
 def rounded_rect(x, y, x0, y0, x1, y1, r):
@@ -10,26 +65,16 @@ def rounded_rect(x, y, x0, y0, x1, y1, r):
     return (x - cx) ** 2 + (y - cy) ** 2 <= r * r and x0 <= x <= x1 and y0 <= y <= y1
 
 
-def bars(u, v):
-    for i, h in enumerate((0.10, 0.17, 0.24)):
-        cx = 0.40 + i * 0.10
-        if rounded_rect(u, v, cx - 0.032, 0.5 - h / 2, cx + 0.032, 0.5 + h / 2, 0.032):
-            return True
-    return False
-
-
 def app_pixel(u, v):
     if not rounded_rect(u, v, 0.1, 0.1, 0.9, 0.9, 0.18):
         return (0, 0, 0, 0)
-    if rounded_rect(u, v, 0.22, 0.32, 0.78, 0.68, 0.18):
-        return (24, 24, 27, 255) if bars(u, v) else (250, 249, 247, 255)
+    if lyre(16 + (u - 0.5) * 53, 16 + (v - 0.5) * 53):
+        return (250, 249, 247, 255)
     return (24, 24, 27, 255)
 
 
 def template_pixel(u, v):
-    outer = rounded_rect(u, v, 0.04, 0.22, 0.96, 0.78, 0.28)
-    inner = rounded_rect(u, v, 0.12, 0.30, 0.88, 0.70, 0.20)
-    return (0, 0, 0, 255) if (outer and not inner) or bars(u, v) else (0, 0, 0, 0)
+    return (0, 0, 0, 255) if lyre(16 + (u - 0.5) * 30, 15.5 + (v - 0.5) * 30) else (0, 0, 0, 0)
 
 
 def render(size, pixel, ss=4):

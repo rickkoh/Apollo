@@ -256,6 +256,10 @@ Record every new decision and question here.
   means the hub has never seen its id, so a reconnect, a relaunch or a resumed conversation never takes the target
   from a live one; with the setting off, §5.5's earlier rule holds. Settings sends the value to the hub through
   `set_target_new_sessions`, and `HubConfig` carries it at start.
+- **D93 Q14: the logo is an upright lyre** (Apollo's instrument), replacing the D27 placeholder: a round bowl, horns
+  curling outward, a yoke, three strings and a bridge, drawn as round-capped strokes on a 32-unit grid.
+  `assets/logo/render.py` renders the app icon and the menu-bar template from the same SVG paths `Logo.vue` draws;
+  `tauri icon` turns the app icon into the bundle's `.icns` and PNGs.
 
 ## 3. Architecture
 
@@ -1192,8 +1196,8 @@ After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater repla
 
 ### Phase 7 — later
 
-Global shortcuts (R9), focus hand-back after a send (Q3), a screen-change observer, multiple
-displays (Q13), the final logo (Q14), signing and notarisation.
+Global shortcuts (R9), focus hand-back after a send (Q3), a screen-change observer, multiple displays
+(Q13), signing and notarisation.
 
 ## 16. Constraints
 
@@ -1226,8 +1230,6 @@ displays (Q13), the final logo (Q14), signing and notarisation.
   the day-to-day one. On that login an admin must also set `channelsEnabled: true` and put the voice plugin on the
   organization's `allowedChannelPlugins`, which replaces the local approval file (D45).
 - **Q3** After a send, should focus return to the app you were in? (Phase 7.)
-- **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
-  wave)? Phase 7; phases 1–6 use the D27 placeholder.
 - **Q21** Developer ID signing and notarisation: once the user's Apple Developer login is set up, sign with the
   Developer ID, notarise the `.dmg` and staple it, so a downloaded Apollo opens without Gatekeeper's warning (D58).
 - **Q20** Why did a panel session started through the first S6 wrapper not load the plugin from `--settings`, when a
@@ -1238,10 +1240,10 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q22** Now that titles describe the conversation, should the picker show the folder as a dimmed second line, so
   sessions from two projects with similar titles stay apart? Today it is a tooltip there and a column on Sessions.
 
-Answered: Q18 (D85), Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q5 (D49), Q6
-(full-screen support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local
-app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26), Q15 (D35), Q23 (a session started by
-dictation keeps its folder name until it has a title, §22.5).
+Answered: Q14 (D93), Q18 (D85), Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q5
+(D49), Q6 (full-screen support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory
+means local app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26), Q15 (D35), Q23 (a session
+started by dictation keeps its folder name until it has a title, §22.5).
 
 ## 19. Spikes
 
@@ -1288,8 +1290,8 @@ sleep. Fail: the hooks fallback in §22.4.
 ## 20. Name and logo
 
 - **Name:** Apollo (D51); the terminal command stays `cv`.
-- **Logo:** parked (Q14). Needs a full-colour app icon (`.icns`) and a monochrome menu-bar template (18 pt, PDF or
-  @1x/@2x PNG).
+- **Logo:** an upright lyre (D93): a full-colour app icon (`.icns`) and a monochrome menu-bar template (18 pt, @1x/@2x
+  PNG).
 
 ## 21. Build run
 
