@@ -236,6 +236,8 @@ Record every new decision and question here.
 - **D87 The voice plugin keeps its name in the `apollo` marketplace** (`voice@apollo`, channel `plugin:voice@apollo`),
   so the reply tool stays `mcp__plugin_voice_voice__reply`; D51's "plugin" rename covers its marketplace, its
   description and its variables (`APOLLO_DISCOVERY`, `APOLLO_HOST`).
+- **D88 Nothing in the repository names an employer:** the bundle id is `com.rickkoh.apollo` (`.dev` for Apollo Dev),
+  commits carry the owner's GitHub noreply identity, and examples use neutral names (`orders.service`).
 - **D86 A release is cut from any clean checkout whose HEAD is `origin/main`** and pushes `HEAD:main` with its tag in
   one atomic push, so a worktree can release without moving the main checkout. The release commit is made and tagged
   before the build, so About's commit is the tagged one; a failure before the push drops both.
@@ -1320,7 +1322,7 @@ Decisions D71–D76 came from it.
 
 Later the same day the user moved releases to GitHub `rickkoh/Apollo` (D83–D86), approved generating the updater key
 and going on with the rest, asked for every commit to carry their private GitHub identity, and will set up an Apple
-Developer login afterwards (Q21).
+Developer login afterwards (Q21). Then: nothing may tie Apollo to an employer (D88).
 
 ### Status
 
