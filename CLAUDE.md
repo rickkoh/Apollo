@@ -30,7 +30,7 @@ question (`Q`) there.
 
 - Rust comes from Homebrew's `rustup`: put `/opt/homebrew/opt/rustup/bin` on `PATH` for cargo commands.
 - Node 24; Xcode command-line tools.
-- The single-session prototype and the S1/S2 spikes were removed after phase 3; `git show 472969f:reference/…` has
+- The single-session prototype and the S1/S2 spikes were removed after phase 3; `git show d8b64d8:reference/…` has
   them.
 
 ## Diagnosing a lost message

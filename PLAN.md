@@ -1042,7 +1042,7 @@ contrast meets WCAG AA in both themes.
 | Presence | Rust tests on a temp sessions folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file |
 | UI | component tests later, once the islands settle | |
 
-The prototype and spikes were removed after phase 3; they remain in git history (commit `472969f`, `reference/`).
+The prototype and spikes were removed after phase 3; they remain in git history (commit `d8b64d8`, `reference/`).
 
 ## 14. Development
 
