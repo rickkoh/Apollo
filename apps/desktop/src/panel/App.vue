@@ -10,9 +10,9 @@ useListener(api.onPanelNavigate(route => router.push(route)))
 
 <template>
     <div class="panel">
+        <div class="drag" data-tauri-drag-region />
         <Sidebar />
         <main class="content">
-            <div class="drag" data-tauri-drag-region />
             <RouterView />
         </main>
     </div>
@@ -73,6 +73,7 @@ code {
 
 <style scoped>
 .panel {
+    position: relative;
     display: flex;
     height: 100%;
 }
@@ -81,7 +82,8 @@ code {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 44px 40px 40px;
+    margin-top: 36px;
+    padding: 8px 40px 40px;
 }
 .drag {
     position: absolute;

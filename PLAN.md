@@ -932,6 +932,8 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 └──────────────┴───────────────────────────────────────────────────────────┘
 ```
 
+A 36 px strip across the top of the window drags it, as in Wispr Flow; pages scroll below it, so it never scrolls away.
+
 | Page | Content |
 |---|---|
 | Home | greeting; status cards (overlay on or off with a toggle, live sessions, target); the `cv` command with Copy, or an Install button when `cv` isn't installed; recent messages across sessions grouped by day |
