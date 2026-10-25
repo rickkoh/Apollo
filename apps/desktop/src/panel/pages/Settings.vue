@@ -9,6 +9,7 @@ import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
 import Updates from '../components/Updates.vue'
+import { useCopy } from '../composables/useCopy'
 
 const props = defineProps<{ section: string }>()
 const { settings } = useSettings()
@@ -24,7 +25,7 @@ async function loadPlugin(): Promise<void> {
     try {
         plugin.value = await api.pluginStatus()
     } catch (err) {
-        pluginError.value = api.isUiError(err) ? err.message : String(err)
+        pluginError.value = api.errorMessage(err)
     }
 }
 
@@ -59,12 +60,8 @@ function editorHint(editor: EditorPanel): string {
     }
 }
 
-const copiedSetting = ref(false)
-async function copySetting(): Promise<void> {
-    await navigator.clipboard.writeText(idePanel.value?.setting ?? '')
-    copiedSetting.value = true
-    setTimeout(() => (copiedSetting.value = false), 1500)
-}
+const settingCopy = useCopy()
+const copySetting = () => settingCopy.copy(idePanel.value?.setting ?? '')
 
 const pluginHint = computed(() => {
     if (pluginError.value) return pluginError.value
@@ -81,12 +78,8 @@ const approvalHints: Record<ApprovalState, string> = {
     conflict: 'managed-settings.json sets its own approved channels, which can replace this approval. Add the voice plugin there',
 }
 const approval = computed(() => cli.status.value?.approval ?? null)
-const copiedApproval = ref(false)
-async function copyApproval(): Promise<void> {
-    await navigator.clipboard.writeText(cli.status.value?.approvalCommand ?? '')
-    copiedApproval.value = true
-    setTimeout(() => (copiedApproval.value = false), 1500)
-}
+const approvalCopy = useCopy()
+const copyApproval = () => approvalCopy.copy(cli.status.value?.approvalCommand ?? '')
 
 const error = ref<string | null>(null)
 const confirmingClear = ref(false)
@@ -98,7 +91,7 @@ async function setOpenAtLogin(enabled: boolean): Promise<void> {
     try {
         openAtLogin.value = await api.setOpenAtLogin(enabled)
     } catch (err) {
-        error.value = api.isUiError(err) ? err.message : String(err)
+        error.value = api.errorMessage(err)
     }
 }
 const cleared = ref(false)
@@ -108,7 +101,7 @@ async function patch(change: object): Promise<void> {
     try {
         settings.value = await api.updateSettings(change)
     } catch (err) {
-        error.value = api.isUiError(err) ? err.message : String(err)
+        error.value = api.errorMessage(err)
         settings.value = await api.getSettings()
     }
 }
@@ -118,7 +111,7 @@ function numberFrom(event: Event): number {
 }
 
 function reveal(): void {
-    api.revealDataFolder().catch(err => (error.value = api.isUiError(err) ? err.message : String(err)))
+    api.revealDataFolder().catch(err => (error.value = api.errorMessage(err)))
 }
 
 async function clearAll(): Promise<void> {
@@ -196,7 +189,7 @@ async function clearAll(): Promise<void> {
             <SettingRow v-if="stable" label="Voice plugin" :hint="pluginHint" />
             <SettingRow v-if="stable && approval" label="Channel approval" :hint="approvalHints[approval]">
                 <button v-if="approval !== 'approved' && approval !== 'conflict'" class="button" type="button" @click="copyApproval">
-                    {{ copiedApproval ? 'Copied' : 'Copy' }}
+                    {{ approvalCopy.copied.value ? 'Copied' : 'Copy' }}
                 </button>
             </SettingRow>
             <pre v-if="stable && approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
@@ -210,7 +203,7 @@ async function clearAll(): Promise<void> {
             <SettingRow label="cv-panel" :hint="idePanelHint" />
             <SettingRow v-for="editor in idePanel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
                 <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
-                    {{ copiedSetting ? 'Copied' : 'Copy' }}
+                    {{ settingCopy.copied.value ? 'Copied' : 'Copy' }}
                 </button>
             </SettingRow>
             <pre v-if="idePanel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ idePanel.setting }}</code></pre>

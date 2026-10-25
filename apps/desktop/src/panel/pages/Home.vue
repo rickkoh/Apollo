@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import * as api from '../../shared/api'
+import StartSessionHint from '../../shared/components/StartSessionHint.vue'
 import { useCli } from '../../shared/composables/useCli'
 import { useSessions } from '../../shared/composables/useSessions'
 import { dayLabel } from '../../shared/format'
@@ -8,6 +9,7 @@ import type { Message } from '../../shared/types'
 import Card from '../components/Card.vue'
 import MessageRow from '../components/MessageRow.vue'
 import Toggle from '../components/Toggle.vue'
+import { useCopy } from '../composables/useCopy'
 import { useMessageFeed } from '../composables/useMessageFeed'
 import { useOverlayVisible } from '../composables/useOverlayVisible'
 
@@ -39,12 +41,8 @@ const groups = computed(() => {
     return out
 })
 
-const copied = ref(false)
-async function copyCommand(): Promise<void> {
-    await navigator.clipboard.writeText(cli.status.value?.command ?? 'cv')
-    copied.value = true
-    setTimeout(() => (copied.value = false), 1500)
-}
+const commandCopy = useCopy()
+const copyCommand = () => commandCopy.copy(cli.status.value?.command ?? 'cv')
 </script>
 
 <template>
@@ -70,10 +68,10 @@ async function copyCommand(): Promise<void> {
     <h2>Start a voice session</h2>
     <div v-if="cli.status.value?.installed" class="command">
         <code>$ {{ cli.status.value.command }}</code>
-        <button class="button" type="button" @click="copyCommand">{{ copied ? 'Copied' : 'Copy' }}</button>
+        <button class="button" type="button" @click="copyCommand">{{ commandCopy.copied.value ? 'Copied' : 'Copy' }}</button>
     </div>
     <div v-else class="command">
-        <span class="dim">Start a session with <code>{{ cli.status.value?.command ?? 'cv' }}</code> in any terminal, Cursor's included.</span>
+        <StartSessionHint class="dim" :command="cli.status.value?.command ?? 'cv'" />
         <button class="button" type="button" :disabled="cli.busy.value" @click="cli.install">Install</button>
     </div>
     <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>

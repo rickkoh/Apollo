@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import * as api from '../../shared/api'
 import Icon from '../../shared/components/Icon.vue'
+import StartSessionHint from '../../shared/components/StartSessionHint.vue'
 import StatusDot from '../../shared/components/StatusDot.vue'
 import { useSessions } from '../../shared/composables/useSessions'
 import { homeRelative, relative } from '../../shared/format'
@@ -62,7 +63,7 @@ function forget(id: SessionId): Promise<void> {
     <h1>Sessions</h1>
     <p v-if="error" class="error-text">{{ error }}</p>
     <Card v-if="rows.length === 0">
-        <p class="dim empty">Start a session with <code>{{ command }}</code> in any terminal, Cursor's included.</p>
+        <p class="dim empty"><StartSessionHint :command="command" /></p>
     </Card>
     <div v-else class="table">
         <table>

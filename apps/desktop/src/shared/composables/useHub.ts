@@ -6,10 +6,10 @@ import { useListener } from './useListener'
 export function useHub() {
     const running = ref(true)
     const port = ref<number | null>(null)
-    api.hubStatus().then(
-        status => (port.value = status.port),
-        err => (running.value = !(api.isUiError(err) && err.code === 'hub_down')),
-    )
+    function reportError(err: unknown): void {
+        if (api.isUiError(err) && err.code === 'hub_down') running.value = false
+    }
+    api.hubStatus().then(status => (port.value = status.port), reportError)
     useListener(api.onHubState(state => (running.value = state.running)))
-    return { running, port }
+    return { running, port, reportError }
 }

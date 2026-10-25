@@ -59,9 +59,6 @@ function describe(err: unknown): string {
             return `${target.value?.title ?? 'That session'} isn't connected`
         case 'too_large':
             return 'That message is too long to send'
-        case 'hub_down':
-            hub.running.value = false
-            return "Apollo isn't running its hub. Restart the app"
         default:
             return e.message
     }
@@ -73,6 +70,7 @@ async function send(text: string): Promise<void> {
         stack.sent(await api.send(text))
     } catch (err) {
         if (api.isUiError(err) && err.code === 'empty') return
+        hub.reportError(err)
         stack.error(describe(err))
         input.value?.restore(text)
     }
@@ -83,6 +81,7 @@ async function choose(id: SessionId): Promise<void> {
     try {
         await select(id)
     } catch (err) {
+        hub.reportError(err)
         stack.error(describe(err))
     }
 }

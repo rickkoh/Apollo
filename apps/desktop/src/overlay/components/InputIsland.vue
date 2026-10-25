@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import StatusDot, { type DotState } from '../../shared/components/StatusDot.vue'
+import { HUB_DOWN, startSession } from '../../shared/copy'
 import type { SessionView } from '../../shared/types'
 import { usePasteToSend } from '../composables/usePasteToSend'
 
@@ -21,8 +22,8 @@ const MAX_LINES = 3
 
 const disabled = computed(() => props.status === 'hub-down' || !props.target?.live)
 const placeholder = computed(() => {
-    if (props.status === 'hub-down') return "Apollo isn't running its hub. Restart the app"
-    if (!props.target?.live) return `Start a session with ${props.command} in any terminal, Cursor's included`
+    if (props.status === 'hub-down') return HUB_DOWN
+    if (!props.target?.live) return startSession(props.command)
     return 'Speak or type…'
 })
 

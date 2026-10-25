@@ -276,6 +276,10 @@ Record every new decision and question here.
   title; a folder shows home-relative (`~/…`, from Tauri's home directory) and truncates from the left; row actions are
   icon buttons in fixed slots, so Set as target, Rename and Forget line up across rows; the title links to the session
   detail, so the keyboard reaches it.
+- **D97 Text the UI shows in more than one place lives once, in `shared/copy.ts`.** The launcher hint renders from it
+  through `StartSessionHint.vue`, which sets the command in code. An error from the shell shows its own `UiError`
+  message rather than a UI copy of it, so the hub-down sentence is `error.rs`'s in an error and `copy.ts`'s only where
+  no error carries it (the overlay's placeholder).
 
 ## 3. Architecture
 
@@ -901,7 +905,8 @@ src/
     types.ts              re-exports shared/types (generated)
     tokens.css            design tokens, light and dark
     format.ts             relative times, truncation helpers
-    components/           StatusDot.vue, Icon.vue, Kbd.vue
+    copy.ts               text shown in more than one place (D97)
+    components/           StatusDot.vue, Icon.vue, StartSessionHint.vue
   overlay/
     main.ts  Overlay.vue
     components/           InputIsland.vue, ReplyIsland.vue, SessionPicker.vue
@@ -909,6 +914,7 @@ src/
   panel/
     main.ts  App.vue  router.ts
     components/           Sidebar.vue, SettingsDialog.vue, Card.vue, MessageRow.vue, SettingRow.vue
+    composables/          useMessageFeed.ts, useOverlayVisible.ts, useCopy.ts
     pages/                Home.vue, Sessions.vue, SessionDetail.vue, Shortcuts.vue, Settings.vue (the dialog's body)
 ```
 
