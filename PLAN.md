@@ -1216,7 +1216,7 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S5 session registry activity | passed | the channel's parent pid names `~/.claude/sessions/<pid>.json`; around a foreground `sleep 15`, `status` read `idle → busy → idle` with `statusUpdatedAt` (Unix ms) moving each time. Two more values: `shell` (the turn ended, a background command still runs) and `waiting` (a permission prompt). A second message sent mid-turn queued and joined the same turn at its next tool boundary, with no `idle` between (Q19). The file goes when the session ends |
 | S6 IDE panel channel | passed | the wrapper call shape, `channel_enable` and unprompted turns (§24.1); a prototype bridge in Cursor: three panel sessions enabled on the first attempt, dictations answered in the overlay, closing a tab ended the session |
 | S7 GitLab feed and package access | not needed | releases moved to public GitHub releases (D83–D85), which need no credentials |
-| S8 in-place update | not run | a throwaway "Apollo S8" (own bundle id) in /Applications, fed from a local feed on 127.0.0.1 with the real key: the updater swaps it and relaunches; Gatekeeper and the Keychain stay quiet |
+| S8 in-place update | passed | a throwaway "Apollo S8" 0.0.1 in /Applications found 0.0.2 on a local feed at launch; one click downloaded, verified and swapped the ad-hoc-signed bundle and relaunched it; the new process started its hub and re-registered its sessions with no dialog. The signature's trusted comment carries the version, so `requireSignedVersion` holds. A stable app's Install takes over `cv`, `cv-panel` and the marketplace, so a throwaway stable build must not be installed from |
 
 **S3** (~45 min), with a full-screen app (for example Chrome full screen), and with
 `ActivationPolicy::Accessory` plus the §9.6 Edit menu in place: S2 ran as a regular app, so whether ⌘V reaches the
@@ -1334,9 +1334,9 @@ Developer login afterwards (Q21). Then: nothing may tie Apollo to an employer (D
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | done | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green; manual checks confirmed by the user |
 | 5b IDE panels | done | 2026-10-26 | S6 passed with a prototype bridge; the bundled bridge, panel instructions, `cv-panel` and the Settings section are in; every automated check green; manual checks confirmed by the user |
-| 6a Rename and channels | in progress | 2026-10-26 | channel split done (D77–D79): Apollo Dev ran from the worktree with its data in `com.rickkoh.apollo.dev`, overlay bottom-left with the DEV tag, and a scripted `cv-dev` session registered only with its hub; rename waits for the open worktrees to merge |
+| 6a Rename and channels | in progress | 2026-10-26 | channel split done (D77–D79); rename done (D51, D87, D88), every tier green; `main` pushed to GitHub; the approval re-run and the folder move wait for the installed app |
 | 6b Changelog and release tooling | in progress | 2026-10-26 | preflight in a scratch clone: green run prints `0.1.0` and its notes; stops on a dirty tree and on a failing channel test; S7 not needed after the move to public GitHub releases (D85) |
-| 6c Self-update and first releases | in progress | 2026-10-26 | updater, Keychain token, Settings rows, menu item, open at login (D80–D82) and the newer-schema refusal are in; the key pair, the feed config and S8 wait |
+| 6c Self-update and first releases | in progress | 2026-10-26 | updater on public GitHub releases (D83–D86), key generated, S8 passed; v0.1.0 waits for the user to run the release |
 
 ## 22. Native integration
 
