@@ -13,6 +13,8 @@ question (`Q`) there.
   outside `src/shared/api.ts`; the shell's `lib.rs` is the only composition root.
 - Wire and UI types come from Rust through `ts-rs` into `shared/types/`; never hand-write a TypeScript copy.
 - Run the test tier that covers the change, not every suite.
+- The repository is public: nothing in it names an employer, its hosts or its projects (D88).
+- Apollo Dev runs with `npm --prefix apps/desktop run app`; releases go through the `release` skill (`PLAN.md` §23).
 
 ## Invariants (break one and the app silently stops working)
 
