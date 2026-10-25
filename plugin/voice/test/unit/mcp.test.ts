@@ -87,3 +87,23 @@ test('the delivery is acknowledged only after the notification is written', asyn
     await new Promise(resolve => setTimeout(resolve, 10))
     assert.deepEqual(order, ['notify go', 'delivered 7'])
 })
+
+test('a delivery that cannot be written is logged and never acknowledged', async () => {
+    const delivered: number[] = []
+    const logged: string[] = []
+    let deliver: HubClientEvents['deliver'] = () => {}
+    forwardDeliveries(
+        {
+            on: ((event: string, listener: HubClientEvents['deliver']) => {
+                if (event === 'deliver') deliver = listener
+            }) as never,
+            delivered: id => delivered.push(id),
+        },
+        () => Promise.reject(new Error('transport closed')),
+        message => logged.push(message),
+    )
+    deliver({ type: 'deliver', id: 8, text: 'go', at: '' })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    assert.deepEqual(delivered, [])
+    assert.deepEqual(logged, ['message 8 not written to the session: transport closed'])
+})

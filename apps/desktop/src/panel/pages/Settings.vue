@@ -116,8 +116,13 @@ function reveal(): void {
 
 async function clearAll(): Promise<void> {
     confirmingClear.value = false
-    await api.clearHistory()
-    cleared.value = true
+    error.value = null
+    try {
+        await api.clearHistory()
+        cleared.value = true
+    } catch (err) {
+        error.value = api.errorMessage(err)
+    }
 }
 </script>
 

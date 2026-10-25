@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import pkg from '../package.json' with { type: 'json' }
 import type { Host } from './env.ts'
 import type { HubClient } from './hub-client.ts'
+import { log } from './log.ts'
 
 export const INSTRUCTIONS =
     'The user cannot see this terminal: anything they should see must go through this server\'s reply tool, and plain ' +
@@ -63,10 +64,20 @@ export function createChannelServer(hub: Pick<HubClient, 'reply' | 'connected'>,
     return server
 }
 
-/** Writes each delivery into the session, then acknowledges it, so `delivered` means "in the session's transport". */
-export function forwardDeliveries(hub: Pick<HubClient, 'on' | 'delivered'>, notify: (text: string) => Promise<void>): void {
+/**
+ * Writes each delivery into the session, then acknowledges it, so `delivered` means "in the session's transport". A
+ * write that fails is logged and left unacknowledged; the hub fails it as "no acknowledgement".
+ */
+export function forwardDeliveries(
+    hub: Pick<HubClient, 'on' | 'delivered'>,
+    notify: (text: string) => Promise<void>,
+    warn: (message: string) => void = log,
+): void {
     hub.on('deliver', frame => {
-        notify(frame.text).then(() => hub.delivered(frame.id), () => {})
+        notify(frame.text).then(
+            () => hub.delivered(frame.id),
+            (err: unknown) => warn(`message ${frame.id} not written to the session: ${err instanceof Error ? err.message : String(err)}`),
+        )
     })
 }
 
