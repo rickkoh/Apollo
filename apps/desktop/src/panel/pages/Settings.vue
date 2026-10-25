@@ -41,9 +41,9 @@ const pluginHint = computed(() => {
 
 const approvalHints: Record<ApprovalState, string> = {
     approved: 'Approved: cv starts without the development-channels dialog',
-    missing: 'Not approved: cv shows Claude Code’s development-channels dialog. Run this once in a terminal',
-    wrong_entry: 'The approval file doesn’t approve the voice plugin. Run this to rewrite it',
-    unreadable: 'The approval file can’t be read. Run this to rewrite it',
+    missing: "Not approved: cv shows Claude Code's development-channels dialog. Run this once in a terminal",
+    wrong_entry: "The approval file doesn't approve the voice plugin. Run this to rewrite it",
+    unreadable: "The approval file can't be read. Run this to rewrite it",
     conflict: 'managed-settings.json sets its own approved channels, which can replace this approval. Add the voice plugin there',
 }
 const approval = computed(() => cli.status.value?.approval ?? null)

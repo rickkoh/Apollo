@@ -51,7 +51,7 @@ function forget(id: SessionId): Promise<void> {
 <template>
     <h1>Sessions</h1>
     <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="rows.length === 0" class="dim">No sessions yet. Start one with <code>cv</code> in a terminal.</p>
+    <p v-if="rows.length === 0" class="dim">Start a session with <code>cv</code> in any terminal, Cursor's included.</p>
     <table v-else>
         <thead>
             <tr>

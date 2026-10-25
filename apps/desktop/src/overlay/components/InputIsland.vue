@@ -20,7 +20,7 @@ const MAX_LINES = 3
 const disabled = computed(() => props.status === 'hub-down' || !props.target?.live)
 const placeholder = computed(() => {
     if (props.status === 'hub-down') return "Voice Bridge isn't running its hub. Restart the app"
-    if (!props.target?.live) return 'Start a session with `cv` in a terminal'
+    if (!props.target?.live) return "Start a session with cv in any terminal, Cursor's included"
     return 'Speak or type…'
 })
 

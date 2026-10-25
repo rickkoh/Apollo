@@ -22,7 +22,7 @@ onScopeDispose(() => document.removeEventListener('keydown', onKey))
 
 <template>
     <ul class="island" role="listbox" aria-label="Sessions">
-        <li v-if="rows.length === 0" class="empty">No sessions yet. Start one with <code>cv</code></li>
+        <li v-if="rows.length === 0" class="empty">Start a session with <code>cv</code> in any terminal, Cursor's included</li>
         <li v-for="s in rows" :key="s.id" role="option" :aria-selected="s.id === props.targetId" :aria-disabled="!s.live">
             <button type="button" :disabled="!s.live" :title="s.cwd" @click="emit('select', s.id)">
                 <StatusDot :state="s.live ? 'live' : 'offline'" />
