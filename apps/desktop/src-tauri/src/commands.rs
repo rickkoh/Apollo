@@ -110,7 +110,7 @@ fn launcher(state: &AppState) -> Launcher {
 #[tauri::command]
 pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    tauri::async_runtime::spawn_blocking(move || launcher.status(cli::login_shell_path().as_deref()))
+    tauri::async_runtime::spawn_blocking(move || launcher.status(cli::login_shell_var("PATH").as_deref()))
         .await
         .map_err(UiError::internal)
 }
@@ -118,7 +118,7 @@ pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> 
 #[tauri::command]
 pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    tauri::async_runtime::spawn_blocking(move || launcher.install(cli::login_shell_path().as_deref()))
+    tauri::async_runtime::spawn_blocking(move || launcher.install(cli::login_shell_var("PATH").as_deref()))
         .await
         .map_err(UiError::internal)?
         .map_err(UiError::from)

@@ -3,6 +3,7 @@ pub mod discovery;
 mod domain;
 mod error;
 mod events;
+pub mod presence;
 pub mod protocol;
 mod server;
 pub mod store;
@@ -18,6 +19,7 @@ use tokio::task::JoinHandle;
 pub use domain::*;
 pub use error::{HubError, SendError, StoreError};
 pub use events::HubEvents;
+pub use presence::{Activity, Presence};
 pub use store::Store;
 
 use actor::{Command, HubActor};
@@ -57,6 +59,7 @@ impl Hub {
     pub async fn start(
         config: HubConfig,
         mut store: Box<dyn Store>,
+        presence: Option<Box<dyn Presence>>,
         events: Arc<dyn HubEvents>,
     ) -> Result<RunningHub, HubError> {
         store.fail_all_queued("app restarted")?;
@@ -65,7 +68,7 @@ impl Hub {
         let config = Arc::new(config);
 
         let (commands, inbox) = mpsc::channel(COMMAND_BUFFER);
-        let actor = HubActor::new(config.clone(), port, store, events)?;
+        let actor = HubActor::new(config.clone(), port, store, presence, events)?;
         let actor = std::thread::Builder::new()
             .name("hub-actor".into())
             .spawn(move || actor.run(inbox))?;

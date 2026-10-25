@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
+use time::macros::datetime;
+
 use super::*;
 use crate::HubHandle;
 use crate::domain::Token;
@@ -41,15 +43,33 @@ impl HubEvents for Recorder {
     }
 }
 
+/// Activity by Claude pid, set by the test.
+#[derive(Clone, Default)]
+struct FakePresence(Arc<Mutex<HashMap<u32, (Activity, OffsetDateTime)>>>);
+
+impl FakePresence {
+    fn set(&self, pid: u32, activity: Activity, since: OffsetDateTime) {
+        self.0.lock().unwrap().insert(pid, (activity, since));
+    }
+}
+
+impl Presence for FakePresence {
+    fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)> {
+        self.0.lock().unwrap().get(&pid).copied()
+    }
+}
+
 struct Harness {
     commands: mpsc::Sender<Command>,
     handle: HubHandle,
     events: Arc<Recorder>,
+    presence: FakePresence,
     next_conn: u64,
 }
 
 struct Peer {
     conn: u64,
+    pid: u32,
     rx: mpsc::UnboundedReceiver<Outbound>,
 }
 
@@ -70,8 +90,14 @@ fn harness_with(store: MemoryStore, delivery_timeout: Duration) -> Harness {
 fn harness_config(store: MemoryStore, configure: impl FnOnce(&mut HubConfig)) -> Harness {
     let mut config = HubConfig::new(Token::generate());
     configure(&mut config);
+    build(config, store, true)
+}
+
+fn build(config: HubConfig, store: MemoryStore, with_presence: bool) -> Harness {
     let events = Arc::new(Recorder::default());
-    let actor = HubActor::new(Arc::new(config), 4242, Box::new(store), events.clone()).unwrap();
+    let presence = FakePresence::default();
+    let shared = with_presence.then(|| Box::new(presence.clone()) as Box<dyn Presence>);
+    let actor = HubActor::new(Arc::new(config), 4242, Box::new(store), shared, events.clone()).unwrap();
     let (commands, inbox) = mpsc::channel(16);
     std::thread::spawn(move || actor.run(inbox));
     Harness {
@@ -80,6 +106,7 @@ fn harness_config(store: MemoryStore, configure: impl FnOnce(&mut HubConfig)) ->
         },
         commands,
         events,
+        presence,
         next_conn: 1,
     }
 }
@@ -92,12 +119,13 @@ impl Harness {
     async fn register(&mut self, id: &str, cwd: &str) -> (String, Peer) {
         let conn = self.next_conn;
         self.next_conn += 1;
+        let pid = 1000 + conn as u32;
         let (link, rx) = mpsc::unbounded_channel();
         let (answer, title) = oneshot::channel();
         let info = SessionInfo {
             id: sid(id),
             cwd: cwd.into(),
-            claude_pid: 1,
+            claude_pid: pid,
             started_at: OffsetDateTime::now_utc(),
         };
         self.commands
@@ -109,7 +137,7 @@ impl Harness {
             })
             .await
             .unwrap();
-        (title.await.unwrap().unwrap(), Peer { conn, rx })
+        (title.await.unwrap().unwrap(), Peer { conn, pid, rx })
     }
 
     async fn command(&self, command: Command) {
@@ -426,4 +454,62 @@ async fn clear_history_removes_every_message() {
     h.handle.send("hi".into()).await.unwrap();
     h.handle.clear_history().await.unwrap();
     assert!(h.handle.history(sid("a"), None, 10).await.unwrap().is_empty());
+}
+
+fn sessions_events(events: &[Event]) -> usize {
+    events.iter().filter(|e| matches!(e, Event::Sessions(_))).count()
+}
+
+#[tokio::test]
+async fn a_live_sessions_activity_shows_once_the_presence_knows_it() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    assert_eq!(h.view("a").await.activity, None);
+    h.presence.set(a.pid, Activity::Busy, datetime!(2026-10-25 15:00 UTC));
+    h.command(Command::Tick).await;
+    assert_eq!(h.view("a").await.activity, Some(Activity::Busy));
+}
+
+#[tokio::test]
+async fn activity_emits_sessions_once_per_change() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    h.presence.set(a.pid, Activity::Idle, datetime!(2026-10-25 15:00 UTC));
+    h.command(Command::Tick).await;
+    h.events.take();
+
+    h.command(Command::Tick).await;
+    h.presence.set(a.pid, Activity::Idle, datetime!(2026-10-25 15:01 UTC));
+    h.command(Command::Tick).await;
+    assert_eq!(sessions_events(&h.events.take()), 0, "same activity, no event");
+
+    h.presence.set(a.pid, Activity::Busy, datetime!(2026-10-25 15:02 UTC));
+    h.command(Command::Tick).await;
+    h.command(Command::Tick).await;
+    let events = h.events.take();
+    assert_eq!(sessions_events(&events), 1);
+    assert!(matches!(events.last(), Some(Event::Sessions(v)) if v[0].activity == Some(Activity::Busy)));
+}
+
+#[tokio::test]
+async fn activity_is_dropped_when_the_session_ends() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    h.presence.set(a.pid, Activity::Busy, datetime!(2026-10-25 15:00 UTC));
+    h.command(Command::Tick).await;
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    assert_eq!(h.view("a").await.activity, None);
+}
+
+#[tokio::test]
+async fn without_a_presence_activity_stays_unknown() {
+    let mut h = build(HubConfig::new(Token::generate()), MemoryStore::new(), false);
+    let (_, a) = h.register("a", "/w/a").await;
+    h.presence.set(a.pid, Activity::Busy, datetime!(2026-10-25 15:00 UTC));
+    h.command(Command::Tick).await;
+    assert_eq!(h.view("a").await.activity, None);
 }

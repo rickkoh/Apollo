@@ -30,7 +30,7 @@ async fn start(ping: Duration) -> RunningHub {
     let mut config = HubConfig::new(Token::from_hex(TOKEN));
     config.ping_interval = ping;
     config.hello_timeout = Duration::from_millis(300);
-    Hub::start(config, Box::new(MemoryStore::new()), Arc::new(Quiet))
+    Hub::start(config, Box::new(MemoryStore::new()), None, Arc::new(Quiet))
         .await
         .unwrap()
 }

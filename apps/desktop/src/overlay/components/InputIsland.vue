@@ -63,6 +63,7 @@ defineExpose({
         >
             <StatusDot :state="props.status" />
             <span class="title">{{ props.target?.title ?? 'No session' }}</span>
+            <span v-if="props.target?.activity === 'busy'" class="activity">· working</span>
             <span v-if="props.otherUnread" class="unread" aria-label="Another session has unread replies" />
             <span class="caret" aria-hidden="true">{{ props.pickerOpen ? '▴' : '▾' }}</span>
         </button>
@@ -99,7 +100,7 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 6px;
-    max-width: 150px;
+    max-width: 200px;
     padding: 4px 6px;
     border: 0;
     border-radius: 12px;
@@ -115,6 +116,11 @@ defineExpose({
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+}
+.activity {
+    flex: none;
+    color: var(--text-dim);
+    white-space: nowrap;
 }
 .unread {
     width: 6px;

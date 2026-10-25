@@ -92,20 +92,22 @@ impl Launcher {
     }
 }
 
-/// `PATH` as the user's login shell sets it; a GUI app's own environment lacks what shell profiles add.
-pub fn login_shell_path() -> Option<std::ffi::OsString> {
-    const TAG: &str = "__VOICE_BRIDGE_PATH__";
+/// `name` as the user's login shell sets it; a GUI app's own environment lacks what shell profiles add.
+pub fn login_shell_var(name: &str) -> Option<std::ffi::OsString> {
+    const TAG: &str = "__VOICE_BRIDGE_VAR__";
     let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/zsh".into());
     let output = std::process::Command::new(shell)
-        .args(["-ilc", &format!("printf '{TAG}%s' \"$PATH\"")])
+        .args(["-ilc", &format!("printf '{TAG}%s' \"${name}\"")])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .output()
         .ok()?;
     let text = String::from_utf8_lossy(&output.stdout);
     text.rsplit_once(TAG)
-        .map(|(_, path)| path.trim().into())
-        .or_else(|| std::env::var_os("PATH"))
+        .map(|(_, value)| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(Into::into)
+        .or_else(|| std::env::var_os(name))
 }
 
 #[cfg(test)]

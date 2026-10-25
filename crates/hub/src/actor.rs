@@ -10,6 +10,7 @@ use crate::HubConfig;
 use crate::domain::{DeliveryStatus, Direction, HubStatus, Message, MessageId, SessionId, SessionInfo, SessionView};
 use crate::error::{HubError, SendError, StoreError};
 use crate::events::HubEvents;
+use crate::presence::{Activity, Presence};
 use crate::protocol::{ErrorCode, HubFrame};
 use crate::store::{NewMessage, SessionRecord, Store};
 
@@ -26,6 +27,7 @@ pub(crate) type LinkSender = mpsc::UnboundedSender<Outbound>;
 struct Link {
     conn: u64,
     tx: LinkSender,
+    claude_pid: u32,
 }
 
 pub(crate) enum Command {
@@ -98,8 +100,11 @@ pub(crate) struct HubActor {
     config: Arc<HubConfig>,
     port: u16,
     store: Box<dyn Store>,
+    presence: Option<Box<dyn Presence>>,
     events: Arc<dyn HubEvents>,
     links: HashMap<SessionId, Link>,
+    /// Live sessions whose activity the presence knows, with when it last changed.
+    activity: HashMap<SessionId, (Activity, OffsetDateTime)>,
     target: Option<SessionId>,
     pending: HashMap<MessageId, (SessionId, Instant)>,
     /// Set while a target restored at start may still reconnect before another session takes over.
@@ -117,6 +122,7 @@ impl HubActor {
         config: Arc<HubConfig>,
         port: u16,
         store: Box<dyn Store>,
+        presence: Option<Box<dyn Presence>>,
         events: Arc<dyn HubEvents>,
     ) -> Result<Self, StoreError> {
         let target = store.target()?;
@@ -125,8 +131,10 @@ impl HubActor {
             config,
             port,
             store,
+            presence,
             events,
             links: HashMap::new(),
+            activity: HashMap::new(),
             target,
             pending: HashMap::new(),
             restoring_until,
@@ -243,6 +251,7 @@ impl HubActor {
                     is_target: self.target.as_ref() == Some(&r.id),
                     last_activity: Some(r.last_seen),
                     unread: r.unread,
+                    activity: self.activity.get(&r.id).map(|(activity, _)| *activity),
                 }
             })
             .collect())
@@ -271,7 +280,12 @@ impl HubActor {
 
     fn register(&mut self, info: SessionInfo, conn: u64, tx: LinkSender) -> Result<String, HubError> {
         let id = info.id.clone();
-        if let Some(old) = self.links.insert(id.clone(), Link { conn, tx }) {
+        let link = Link {
+            conn,
+            tx,
+            claude_pid: info.claude_pid,
+        };
+        if let Some(old) = self.links.insert(id.clone(), link) {
             let _ = old.tx.send(Outbound::Frame(HubFrame::error(
                 ErrorCode::Replaced,
                 "another connection took over",
@@ -319,6 +333,7 @@ impl HubActor {
             return;
         }
         self.links.remove(id);
+        self.activity.remove(id);
         tracing::info!(session = %id, conn, "session unregistered");
         self.fail_pending_of(id, "session disconnected");
         self.emit_sessions();
@@ -451,8 +466,32 @@ impl HubActor {
         Ok(())
     }
 
+    /// Re-reads the live sessions' activity and tells the UI only when one changed.
+    fn refresh_activity(&mut self) {
+        let Some(presence) = self.presence.as_mut() else {
+            return;
+        };
+        if self.links.is_empty() {
+            return;
+        }
+        let fresh: HashMap<SessionId, (Activity, OffsetDateTime)> = self
+            .links
+            .iter()
+            .filter_map(|(id, link)| Some((id.clone(), presence.activity(link.claude_pid)?)))
+            .collect();
+        let changed = fresh.len() != self.activity.len()
+            || fresh
+                .iter()
+                .any(|(id, (now, _))| self.activity.get(id).map(|(before, _)| before) != Some(now));
+        self.activity = fresh;
+        if changed {
+            self.emit_sessions();
+        }
+    }
+
     fn tick(&mut self) {
         self.end_restore_grace();
+        self.refresh_activity();
         let timeout = self.config.delivery_timeout;
         let expired: Vec<MessageId> = self
             .pending

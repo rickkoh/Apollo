@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use ts_rs::TS;
 
+use crate::presence::Activity;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct SessionId(pub String);
@@ -80,6 +82,8 @@ pub struct SessionView {
     #[ts(type = "string | null")]
     pub last_activity: Option<OffsetDateTime>,
     pub unread: u32,
+    /// Live sessions only, when the session registry knows.
+    pub activity: Option<Activity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -1083,6 +1083,9 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q17** Show sessions without a channel as "Not voice-ready" (D50)? Decide once activity has shipped.
 - **Q18** Which URL and header does GitLab 16.11 accept for a private project's raw file and generic package with a
   deploy token? (S7.)
+- **Q19** A message that arrives mid-turn reaches Claude as a queued command at the next tool boundary, and in S5 Claude
+  declined to act on it as not coming from the user. Should the channel instructions say mid-turn voice messages are
+  the user too? Check with a dictation sent during a long turn.
 
 Answered: Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q5 (D49), Q6
 (full-screen support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local
@@ -1096,7 +1099,7 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S2 Tauri overlay with Wispr Flow | passed for dictation | two sends, replies in 3–4 s; staying on top after clicking another app, and full-screen apps, not yet observed |
 | S3 full screen and window type | passed | non-activating panel chosen (D35) |
 | S4 channel approval | not run | |
-| S5 session registry activity | not run | |
+| S5 session registry activity | passed | the channel's parent pid names `~/.claude/sessions/<pid>.json`; around a foreground `sleep 15`, `status` read `idle → busy → idle` with `statusUpdatedAt` (Unix ms) moving each time. Two more values: `shell` (the turn ended, a background command still runs) and `waiting` (a permission prompt). A second message sent mid-turn queued and joined the same turn at its next tool boundary, with no `idle` between (Q19). The file goes when the session ends |
 | S6 IDE panel channel (optional) | not run | |
 | S7 GitLab feed and package access | not run | Q18: fetch a raw file and a generic package file from the GitLab project with a deploy token |
 | S8 in-place update | not run | the updater swaps an ad-hoc-signed `/Applications/Apollo.app` and relaunches; Gatekeeper stays quiet |

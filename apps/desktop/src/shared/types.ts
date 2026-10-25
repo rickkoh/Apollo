@@ -1,4 +1,5 @@
 export type { AboutInfo } from '@wire/AboutInfo'
+export type { Activity } from '@wire/Activity'
 export type { CliStatus } from '@wire/CliStatus'
 export type { DeliveryStatus } from '@wire/DeliveryStatus'
 export type { Direction } from '@wire/Direction'

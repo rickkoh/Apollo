@@ -4,10 +4,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use hub::presence::ClaudeSessions;
 use hub::store::SqliteStore;
 use hub::{
-    DeliveryStatus, Direction, Hub, HubConfig, HubEvents, HubHandle, Message, MessageId, SessionId, SessionView, Token,
-    discovery,
+    Activity, DeliveryStatus, Direction, Hub, HubConfig, HubEvents, HubHandle, Message, MessageId, SessionId,
+    SessionView, Token, discovery,
 };
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -94,7 +95,12 @@ async fn run_command(handle: &HubHandle, line: &str) {
             Ok(sessions) if sessions.is_empty() => println!("no sessions"),
             Ok(sessions) => {
                 for s in sessions {
-                    let state = if s.live { "live" } else { "ended" };
+                    let state = match (s.live, s.activity) {
+                        (false, _) => "ended",
+                        (true, Some(Activity::Busy)) => "live, busy",
+                        (true, Some(Activity::Idle)) => "live, idle",
+                        (true, None) => "live",
+                    };
                     let target = if s.is_target { " *target*" } else { "" };
                     println!("{} {} [{state}] {} unread={}{target}", s.id, s.title, s.cwd, s.unread);
                 }
@@ -141,9 +147,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let token = Token::generate();
     let store = SqliteStore::open(&data.join("voice.db"))?;
+    let claude_dir = std::env::var_os("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::home_dir().map(|home| home.join(".claude")))
+        .ok_or("no home folder")?;
     let running = Hub::start(
         HubConfig::new(token.clone()),
         Box::new(store),
+        Some(Box::new(ClaudeSessions::new(claude_dir.join("sessions")))),
         Arc::new(Printer::default()),
     )
     .await?;

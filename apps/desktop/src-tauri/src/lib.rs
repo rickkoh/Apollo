@@ -4,6 +4,7 @@ mod error;
 mod events;
 mod macos;
 mod menu;
+mod presence;
 mod settings;
 mod state;
 mod tray;
@@ -37,10 +38,11 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             .level(log::LevelFilter::Info)
             .build(),
     )?;
+    let home = app.path().home_dir()?;
     let paths = AppPaths {
         discovery: data.join("hub.json"),
         plugin: app.path().resource_dir()?.join("plugin/voice"),
-        bin: app.path().home_dir()?.join(".local/bin"),
+        bin: home.join(".local/bin"),
         data,
     };
 
@@ -56,7 +58,12 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let token = Token::generate();
     let events = Arc::new(TauriEvents::new(app.clone()));
-    let running = tauri::async_runtime::block_on(Hub::start(HubConfig::new(token.clone()), Box::new(store), events))?;
+    let running = tauri::async_runtime::block_on(Hub::start(
+        HubConfig::new(token.clone()),
+        Box::new(store),
+        Some(presence::claude_sessions(home)),
+        events,
+    ))?;
     discovery::write(&paths.discovery, running.port, &token)?;
     let visible_at_launch = settings.get().overlay.visible_at_launch;
     app.manage(AppState::new(paths, settings, running));
