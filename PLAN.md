@@ -1301,7 +1301,8 @@ Decisions D71–D76 came from it.
   `git worktree repair`, the memory folder, a clean rebuild).
 - **Fast-forward:** once phase 5's session has stopped, Claude fast-forwards `main` from the main checkout, renames it
   to `master`, adds `origin` and pushes. Tags and GitLab Releases are asked for each time.
-- **`tauri dev` in the worktree after the split:** on port 1421 through a command-line override, without asking.
+- **Apollo Dev in the worktree after the split:** on a free port from 1421 up (another worktree held 1421, so 1422)
+  through a command-line override, without asking.
 - **Manual checks:** steps as chat text, then one numbered pass/fail list answered in chat.
 
 ### Status
@@ -1314,9 +1315,9 @@ Decisions D71–D76 came from it.
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | done | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green; manual checks confirmed by the user |
 | 5b IDE panels | done | 2026-10-26 | S6 passed with a prototype bridge; the bundled bridge, panel instructions, `cv-panel` and the Settings section are in; every automated check green; manual checks confirmed by the user |
-| 6a Rename and channels | not started | | |
-| 6b Changelog and release tooling | in progress | 2026-10-26 | |
-| 6c Self-update and first releases | not started | | |
+| 6a Rename and channels | in progress | 2026-10-26 | channel split done (D77–D79): Apollo Dev ran from the worktree with its data in `com.rickkoh.apollo.dev`, overlay bottom-left with the DEV tag, and a scripted `cv-dev` session registered only with its hub; rename waits for the open worktrees to merge |
+| 6b Changelog and release tooling | in progress | 2026-10-26 | preflight in a scratch clone: green run prints `0.1.0` and its notes; stops on a dirty tree and on a failing channel test; S7 waits for the deploy token |
+| 6c Self-update and first releases | in progress | 2026-10-26 | updater, Keychain token, Settings rows, menu item, open at login (D80–D82) and the newer-schema refusal are in; the key pair, the feed config and S8 wait |
 
 ## 22. Native integration
 
