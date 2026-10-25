@@ -89,6 +89,21 @@ Record every new decision and question here.
   history),** and the handle gains `clear_history`.
 - **D34 Q11: `claude --resume` keeps the session id,** so a resumed session re-registers as the same session and its
   history continues (observed in phase 2's manual check).
+- **D35 Q15: the overlay is a non-activating `NSPanel`** (through `tauri-nspanel` 2.1), floating at
+  `NSStatusWindowLevel` with the §9.4 collection behaviour. S3: both kinds showed over a full-screen app, and Wispr
+  Flow's ⌘V reached both under `ActivationPolicy::Accessory`; only the panel kept the app behind frontmost (Wispr Flow
+  logged dictations against that app; the regular window logged them against Voice Bridge).
+- **D36 The overlay shows a message stack instead of a single reply island** (requested after S3): one timeline of
+  the target's messages, both sides, newest nearest the input, at most 3 cards. Your messages show dimmed as
+  "You: …"; replies aren't paired with messages, so a reply starts the fade of every echo before it. Replies fade
+  20 s after arriving; hovering the stack or expanding a card pauses the fade; errors stay until the next send.
+  Cards slide up and fade in 180 ms, none under reduced motion. Logic in `overlay/stack.ts`, unit-tested.
+- **D37 A target restored at start keeps priority for `restore_grace` (15 s)** while it reconnects; then the earliest
+  live connection takes over. Without it, whichever session reconnected first after a relaunch became the target.
+- **D38 Composables both windows use (`useSessions`, `useHub`, `useSettings`, `useListener`) live in
+  `src/shared/composables/`.**
+- **D39 Hub-down is a first-class UI state:** error code `hub_down`, event `hub-state { running }`, and the commands
+  `overlay_visible`, `set_overlay_visible` and `clear_history` join §9.7.
 - **D30 ts-rs exports from every crate into one `shared/types/`** via `TS_RS_EXPORT_DIR` in `.cargo/config.toml`,
   including the shell's `Settings`, `UiError` and `CliStatus`.
 
@@ -190,7 +205,6 @@ voice-bridge/
     test/
     dist/channel.js               build output (git-ignored; bundled into the app)
   bin/cv-dev                      launcher pointing at plugin/voice, for development
-  reference/                      the prototype and spikes, kept for reference
 ```
 
 ## 5. Hub crate
@@ -699,7 +713,7 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 |---|---|
 | `useSessions()` | `{ sessions: Ref<SessionView[]>, live: ComputedRef<SessionView[]> }`; loads once, then follows `sessions-changed` |
 | `useTarget()` | `{ target: ComputedRef<SessionView \| null>, select(id) }`; follows `target-changed` |
-| `useReplies(target)` | `{ latest: Ref<Message \| null>, pending: Ref<Message \| null>, error: Ref<string \| null> }`; marks the target's replies read when shown |
+| `useStack(target, onUndelivered)` | `{ stack: MessageStack, hovered: Ref<boolean> }` (D36); marks the target's replies read when shown |
 | `usePasteToSend(el, send)` | D3: `paste` → `preventDefault()` + `send(clipboardData text)`; Enter sends the box; Shift+Enter is a newline |
 | `useAutoResize(root)` | `ResizeObserver` → `overlay_resize` |
 
@@ -708,7 +722,8 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 | Component | Props | Emits | Notes |
 |---|---|---|---|
 | `InputIsland` | `target`, `status: 'live' \| 'pending' \| 'offline' \| 'hub-down'` | `send(text)`, `toggle-picker` | owns the text box; restores text on a failed send |
-| `ReplyIsland` | `reply`, `error`, `previewLines` | `open-panel` | clamped preview, **more** expands, click toggles |
+| `MessageStack` | `cards`, `previewLines` | `hover`, `open-panel` | transition group of `ReplyIsland` cards (D36) |
+| `ReplyIsland` | `card`, `previewLines` | `update:expanded`, `open-panel` | one card: clamped preview, **more** expands, click toggles |
 | `SessionPicker` | `sessions`, `targetId` | `select(id)`, `close` | live first, then ended (disabled); Esc or outside click closes |
 | `Sidebar` | `routes` | | logo, nav, Settings at the bottom |
 
@@ -775,9 +790,9 @@ Picking a session:
 | Text box | grows to three lines; paste sends at once (D3); Enter sends; Shift+Enter adds a line; disabled with a hint when there is no live target |
 | Send feedback | a brief tick on `delivered`; on failure the reason shows in the reply island and the text returns to the box if it is empty |
 
-**Reply island:** the target's latest reply, clamped to `replyPreviewLines` with **more** to expand up to 40% of the
-screen height, scrollable. It stays until the next send; clicking toggles expand and collapse; double-click opens that
-session in the panel. Errors use the same island in `--error`.
+**Message stack (D36):** up to three cards above the input, each clamped to `replyPreviewLines` with **more** to
+expand up to 40% of the screen height, scrollable; clicking toggles expand and collapse; double-click opens the target
+in the panel. Errors use the same card in `--error`.
 
 **Picker:** live sessions first (title; folder as a tooltip; unread dot), then sessions ended in the last 24 hours,
 greyed out and not selectable. Selecting calls `set_target` and closes.
@@ -861,7 +876,7 @@ contrast meets WCAG AA in both themes.
 | Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv` |
 | UI | component tests later, once the islands settle | |
 
-`reference/tests/` holds the prototype-era oracles the end-to-end test replaces.
+The prototype and spikes were removed after phase 3; they remain in git history (commit `472969f`, `reference/`).
 
 ## 14. Development
 
@@ -962,11 +977,10 @@ a screen-change observer, multiple displays (Q13), the final logo (Q14), signing
   (Phase 5.)
 - **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
   wave)? Phase 5; phases 1–4 use the D27 placeholder.
-- **Q15** Overlay window type (S3): a regular window, or a non-activating panel? Rule in D28; S3 records the result.
 
 Answered: Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q6 (full-screen
 support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local app data,
-R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26).
+R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26), Q15 (D35).
 
 ## 19. Spikes
 
@@ -974,7 +988,7 @@ R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26).
 |---|---|---|
 | S1 plugin channel, two sessions | passed | `plugin:voice@inline` works; each message reached only its session; replies tagged; ~8 s round trip; no way for a channel to see whether it is enabled |
 | S2 Tauri overlay with Wispr Flow | passed for dictation | two sends, replies in 3–4 s; staying on top after clicking another app, and full-screen apps, not yet observed |
-| S3 full screen and window type | planned, phase 3 | see below |
+| S3 full screen and window type | passed | non-activating panel chosen (D35) |
 
 **S3** (~45 min), with a full-screen app (for example Chrome full screen), and with
 `ActivationPolicy::Accessory` plus the §9.6 Edit menu in place: S2 ran as a regular app, so whether ⌘V reaches the
@@ -1041,5 +1055,5 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 |---|---|---|---|
 | 1 Skeleton | done | 2026-10-25 | all four checks passed; window check by CoreGraphics window list (no screen-capture permission) |
 | 2 Hub and channel | done | 2026-10-25 | 44 Rust + 15 channel + 4 end-to-end tests green; manual two-session check and Q11 passed |
-| 3 S3 and overlay | not started | | |
+| 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | not started | | |

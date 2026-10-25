@@ -98,6 +98,8 @@ pub(crate) struct HubActor {
     links: HashMap<SessionId, Link>,
     target: Option<SessionId>,
     pending: HashMap<MessageId, (SessionId, Instant)>,
+    /// Set while a target restored at start may still reconnect before another session takes over.
+    restoring_until: Option<Instant>,
 }
 
 fn folder_name(cwd: &str) -> String {
@@ -114,6 +116,7 @@ impl HubActor {
         events: Arc<dyn HubEvents>,
     ) -> Result<Self, StoreError> {
         let target = store.target()?;
+        let restoring_until = target.as_ref().map(|_| Instant::now() + config.restore_grace);
         Ok(Self {
             config,
             port,
@@ -122,6 +125,7 @@ impl HubActor {
             links: HashMap::new(),
             target,
             pending: HashMap::new(),
+            restoring_until,
         })
     }
 
@@ -268,12 +272,39 @@ impl HubActor {
             let _ = old.tx.send(Outbound::Close);
         }
         self.store.upsert_session(&info, Self::now())?;
-        if self.live_target().is_none_or(|t| t == &id) && self.target.as_ref() != Some(&id) {
+        if self.target.as_ref() != Some(&id) && self.may_take_target() {
             self.change_target(Some(id.clone()))?;
         }
         tracing::info!(session = %id, conn, "session registered");
         self.emit_sessions();
         Ok(self.title_of(&id))
+    }
+
+    fn may_take_target(&self) -> bool {
+        self.live_target().is_none() && (self.target.is_none() || self.restoring_until.is_none())
+    }
+
+    /// Ends the restore grace; when the restored target never came back, the earliest live connection takes over.
+    fn end_restore_grace(&mut self) {
+        if self.restoring_until.is_none_or(|until| Instant::now() < until) {
+            return;
+        }
+        self.restoring_until = None;
+        if self.live_target().is_some() {
+            return;
+        }
+        let Some(id) = self
+            .links
+            .iter()
+            .min_by_key(|(_, link)| link.conn)
+            .map(|(id, _)| id.clone())
+        else {
+            return;
+        };
+        match self.change_target(Some(id)) {
+            Ok(()) => self.emit_sessions(),
+            Err(err) => tracing::error!("handing over the target failed: {err}"),
+        }
     }
 
     fn unregister(&mut self, id: &SessionId, conn: u64) {
@@ -414,6 +445,7 @@ impl HubActor {
     }
 
     fn tick(&mut self) {
+        self.end_restore_grace();
         let timeout = self.config.delivery_timeout;
         let expired: Vec<MessageId> = self
             .pending

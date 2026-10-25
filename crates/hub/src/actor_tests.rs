@@ -64,8 +64,12 @@ fn sid(s: &str) -> SessionId {
 }
 
 fn harness_with(store: MemoryStore, delivery_timeout: Duration) -> Harness {
+    harness_config(store, |config| config.delivery_timeout = delivery_timeout)
+}
+
+fn harness_config(store: MemoryStore, configure: impl FnOnce(&mut HubConfig)) -> Harness {
     let mut config = HubConfig::new(Token::generate());
-    config.delivery_timeout = delivery_timeout;
+    configure(&mut config);
     let events = Arc::new(Recorder::default());
     let actor = HubActor::new(Arc::new(config), 4242, Box::new(store), events.clone()).unwrap();
     let (commands, inbox) = mpsc::channel(16);
@@ -143,13 +147,46 @@ async fn target_never_switches_away_from_a_live_session() {
 }
 
 #[tokio::test]
-async fn registering_takes_over_a_target_that_is_not_live() {
-    let mut store = MemoryStore::new();
-    store.set_target(Some(&sid("gone"))).unwrap();
-    let mut h = harness_with(store, Duration::from_secs(5));
-    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("gone")));
+async fn registering_takes_over_a_target_that_disconnected() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/a").await;
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
     let (_, _b) = h.register("b", "/w/b").await;
     assert_eq!(h.handle.status().await.unwrap().target, Some(sid("b")));
+}
+
+#[tokio::test]
+async fn a_restored_target_keeps_priority_during_the_grace_period() {
+    let mut store = MemoryStore::new();
+    store.set_target(Some(&sid("a"))).unwrap();
+    let mut h = harness_config(store, |c| c.restore_grace = Duration::from_secs(60));
+    let (_, _b) = h.register("b", "/w/b").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("a")));
+    let (_, _a) = h.register("a", "/w/a").await;
+    h.command(Command::Tick).await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("a")));
+}
+
+#[tokio::test]
+async fn after_the_grace_period_a_live_session_takes_over_a_target_that_never_came_back() {
+    let mut store = MemoryStore::new();
+    store.set_target(Some(&sid("gone"))).unwrap();
+    let mut h = harness_config(store, |c| c.restore_grace = Duration::from_millis(30));
+    let (_, _b) = h.register("b", "/w/b").await;
+    let (_, _c) = h.register("c", "/w/c").await;
+    assert_eq!(h.handle.status().await.unwrap().target, Some(sid("gone")));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    h.command(Command::Tick).await;
+    assert_eq!(
+        h.handle.status().await.unwrap().target,
+        Some(sid("b")),
+        "the earliest connection takes over"
+    );
+    assert!(h.events.take().contains(&Event::Target(Some(sid("b")))));
 }
 
 #[tokio::test]

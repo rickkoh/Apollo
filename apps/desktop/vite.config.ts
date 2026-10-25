@@ -6,7 +6,7 @@ export default defineConfig({
     plugins: [vue()],
     clearScreen: false,
     resolve: {
-        alias: { '@types': fileURLToPath(new URL('../../shared/types', import.meta.url)) },
+        alias: { '@wire': fileURLToPath(new URL('../../shared/types', import.meta.url)) },
     },
     server: {
         port: 1420,

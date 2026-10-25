@@ -2,5 +2,16 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "overlay",
   "windows": ["overlay"],
-  "permissions": ["core:event:default"]
+  "permissions": [
+    "core:event:default",
+    "allow-hub-status",
+    "allow-list-sessions",
+    "allow-set-target",
+    "allow-send",
+    "allow-history",
+    "allow-mark-read",
+    "allow-get-settings",
+    "allow-overlay-resize",
+    "allow-open-panel"
+  ]
 }

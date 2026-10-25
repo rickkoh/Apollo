@@ -1,0 +1,57 @@
+:root {
+    --island-bg: rgb(255 255 255 / 0.94);
+    --island-border: rgb(0 0 0 / 0.08);
+    --island-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+    --panel-bg: #faf9f7;
+    --card-bg: #ffffff;
+    --text: #18181b;
+    --text-dim: #71717a;
+    --hover: rgb(0 0 0 / 0.05);
+    --accent: AccentColor;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --error: #f87171;
+    --idle: #71717a;
+    --radius-input: 22px;
+    --radius-reply: 18px;
+    --radius-card: 14px;
+    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    --motion: 180ms;
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --island-bg: rgb(24 24 27 / 0.92);
+        --island-border: rgb(255 255 255 / 0.08);
+        --island-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+        --panel-bg: #111113;
+        --card-bg: #18181b;
+        --text: #f4f4f5;
+        --text-dim: #a1a1aa;
+        --hover: rgb(255 255 255 / 0.06);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --motion: 0ms;
+    }
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--text);
+}
+
+button {
+    font: inherit;
+    color: inherit;
+}

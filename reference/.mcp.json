@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "voice": {
-      "command": "node",
-      "args": ["/Users/rick.koh99/Desktop/voice-bridge/bridge.mjs"],
-      "alwaysLoad": true
-    }
-  }
-}

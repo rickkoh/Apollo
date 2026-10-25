@@ -33,6 +33,8 @@ pub struct HubConfig {
     pub ping_interval: Duration,
     pub hello_timeout: Duration,
     pub max_text_bytes: usize,
+    /// How long a target restored at start keeps priority while it reconnects; above the channel's 10 s retry.
+    pub restore_grace: Duration,
 }
 
 impl HubConfig {
@@ -43,6 +45,7 @@ impl HubConfig {
             ping_interval: Duration::from_secs(15),
             hello_timeout: Duration::from_secs(2),
             max_text_bytes: 16 * 1024,
+            restore_grace: Duration::from_secs(15),
         }
     }
 }
