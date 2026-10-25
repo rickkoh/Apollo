@@ -14,6 +14,7 @@ pub struct SessionRecord {
     pub id: SessionId,
     pub cwd: String,
     pub title: Option<String>,
+    pub claude_title: Option<String>,
     pub last_seen: OffsetDateTime,
     pub unread: u32,
 }
@@ -43,6 +44,7 @@ pub trait Store: Send {
     fn recent(&self, limit: u32) -> Result<Vec<Message>, StoreError>;
     fn mark_read(&mut self, id: &SessionId, upto: MessageId) -> Result<(), StoreError>;
     fn rename(&mut self, id: &SessionId, title: Option<&str>) -> Result<(), StoreError>;
+    fn set_claude_title(&mut self, id: &SessionId, title: &str) -> Result<(), StoreError>;
     fn forget(&mut self, id: &SessionId) -> Result<(), StoreError>;
     fn clear_history(&mut self) -> Result<(), StoreError>;
     fn target(&self) -> Result<Option<SessionId>, StoreError>;

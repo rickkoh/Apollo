@@ -35,9 +35,11 @@ async function startRename(s: SessionView): Promise<void> {
     input.value[0]?.select()
 }
 
-function saveRename(id: SessionId): Promise<void> {
+async function saveRename(s: SessionView): Promise<void> {
     editing.value = null
-    return run(() => api.renameSession(id, draft.value.trim() || null))
+    const title = draft.value.trim()
+    if (title === s.title) return
+    await run(() => api.renameSession(s.id, title || null))
 }
 
 function makeTarget(id: SessionId): Promise<void> {
@@ -74,9 +76,9 @@ function forget(id: SessionId): Promise<void> {
                         v-model="draft"
                         aria-label="Session name"
                         @click.stop
-                        @keydown.enter="saveRename(s.id)"
+                        @keydown.enter="saveRename(s)"
                         @keydown.esc="editing = null"
-                        @blur="saveRename(s.id)"
+                        @blur="saveRename(s)"
                     />
                     <span v-else>{{ s.title }}</span>
                     <span v-if="s.isTarget" class="badge">target</span>

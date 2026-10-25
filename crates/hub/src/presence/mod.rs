@@ -19,4 +19,6 @@ pub enum Activity {
 pub trait Presence: Send {
     /// The activity of the Claude process `pid` and when it last changed; `None` when unknown.
     fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)>;
+    /// The title Claude Code shows for the session of the Claude process `pid`; `None` until it has one.
+    fn title(&mut self, pid: u32) -> Option<String>;
 }

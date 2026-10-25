@@ -154,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let running = Hub::start(
         HubConfig::new(token.clone()),
         Box::new(store),
-        Some(Box::new(ClaudeSessions::new(claude_dir.join("sessions")))),
+        Some(Box::new(ClaudeSessions::new(claude_dir))),
         Arc::new(Printer::default()),
     )
     .await?;

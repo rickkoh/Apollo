@@ -8,7 +8,8 @@ use super::{NewMessage, SessionRecord, Store};
 use crate::domain::{DeliveryStatus, Direction, Message, MessageId, SessionId, SessionInfo};
 use crate::error::StoreError;
 
-const MIGRATIONS: &[&str] = &["
+const MIGRATIONS: &[&str] = &[
+    "
     CREATE TABLE sessions (
         id          TEXT PRIMARY KEY,
         cwd         TEXT NOT NULL,
@@ -31,7 +32,11 @@ const MIGRATIONS: &[&str] = &["
         key    TEXT PRIMARY KEY,
         value  TEXT NOT NULL
     );
-"];
+",
+    "
+    ALTER TABLE sessions ADD COLUMN claude_title TEXT;
+",
+];
 
 pub struct SqliteStore {
     conn: Connection,
@@ -153,7 +158,7 @@ impl Store for SqliteStore {
 
     fn sessions(&self) -> Result<Vec<SessionRecord>, StoreError> {
         let mut stmt = self.conn.prepare(
-            "SELECT s.id, s.cwd, s.title, s.last_seen,
+            "SELECT s.id, s.cwd, s.title, s.claude_title, s.last_seen,
                     (SELECT COUNT(*) FROM messages m
                       WHERE m.session_id = s.id AND m.direction = 'from_session' AND m.id > s.last_read)
                FROM sessions s ORDER BY s.last_seen DESC",
@@ -163,16 +168,18 @@ impl Store for SqliteStore {
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, Option<String>>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, u32>(4)?,
+                r.get::<_, Option<String>>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, u32>(5)?,
             ))
         })?;
         rows.map(|row| {
-            let (id, cwd, title, last_seen, unread) = row?;
+            let (id, cwd, title, claude_title, last_seen, unread) = row?;
             Ok(SessionRecord {
                 id: SessionId(id),
                 cwd,
                 title,
+                claude_title,
                 last_seen: parse_ts(&last_seen)?,
                 unread,
             })
@@ -257,6 +264,14 @@ impl Store for SqliteStore {
     fn rename(&mut self, id: &SessionId, title: Option<&str>) -> Result<(), StoreError> {
         self.conn.execute(
             "UPDATE sessions SET title = ?2 WHERE id = ?1",
+            params![id.as_str(), title],
+        )?;
+        Ok(())
+    }
+
+    fn set_claude_title(&mut self, id: &SessionId, title: &str) -> Result<(), StoreError> {
+        self.conn.execute(
+            "UPDATE sessions SET claude_title = ?2 WHERE id = ?1",
             params![id.as_str(), title],
         )?;
         Ok(())

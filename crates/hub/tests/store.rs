@@ -49,7 +49,7 @@ fn migrates_from_empty_and_reopens() {
     assert_eq!(store.target().unwrap(), Some(sid("a")));
     let conn = rusqlite::Connection::open(dir.path().join("voice.db")).unwrap();
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
-    assert_eq!(version, 1);
+    assert_eq!(version, 2);
 }
 
 #[test]
@@ -176,6 +176,22 @@ fn rename_persists() {
         store.rename(&sid("a"), Some("Payments")).unwrap();
     }
     assert_eq!(open(&dir).sessions().unwrap()[0].title.as_deref(), Some("Payments"));
+}
+
+#[test]
+fn claudes_title_persists_beside_the_rename() {
+    let dir = tempfile::tempdir().unwrap();
+    let now = OffsetDateTime::now_utc();
+    {
+        let mut store = open(&dir);
+        store.upsert_session(&info("a"), now).unwrap();
+        store.set_claude_title(&sid("a"), "Fix login").unwrap();
+    }
+    let record = open(&dir).sessions().unwrap().remove(0);
+    assert_eq!(
+        (record.title, record.claude_title.as_deref()),
+        (None, Some("Fix login"))
+    );
 }
 
 #[test]

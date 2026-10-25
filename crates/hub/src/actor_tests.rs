@@ -43,19 +43,30 @@ impl HubEvents for Recorder {
     }
 }
 
-/// Activity by Claude pid, set by the test.
+/// Activity and titles by Claude pid, set by the test.
 #[derive(Clone, Default)]
-struct FakePresence(Arc<Mutex<HashMap<u32, (Activity, OffsetDateTime)>>>);
+struct FakePresence {
+    activity: Arc<Mutex<HashMap<u32, (Activity, OffsetDateTime)>>>,
+    titles: Arc<Mutex<HashMap<u32, String>>>,
+}
 
 impl FakePresence {
     fn set(&self, pid: u32, activity: Activity, since: OffsetDateTime) {
-        self.0.lock().unwrap().insert(pid, (activity, since));
+        self.activity.lock().unwrap().insert(pid, (activity, since));
+    }
+
+    fn set_title(&self, pid: u32, title: &str) {
+        self.titles.lock().unwrap().insert(pid, title.into());
     }
 }
 
 impl Presence for FakePresence {
     fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)> {
-        self.0.lock().unwrap().get(&pid).copied()
+        self.activity.lock().unwrap().get(&pid).copied()
+    }
+
+    fn title(&mut self, pid: u32) -> Option<String> {
+        self.titles.lock().unwrap().get(&pid).cloned()
     }
 }
 
@@ -415,6 +426,38 @@ async fn rename_overrides_the_title_and_empty_clears_it() {
         h.handle.rename(sid("nope"), None).await,
         Err(HubError::UnknownSession)
     ));
+}
+
+#[tokio::test]
+async fn claudes_title_replaces_the_folder_and_a_rename_overrides_it() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/alpha").await;
+    h.presence.set_title(a.pid, "Fix login");
+    h.command(Command::Tick).await;
+    assert_eq!(h.view("a").await.title, "Fix login");
+    h.handle.rename(sid("a"), Some("Payments".into())).await.unwrap();
+    assert_eq!(h.view("a").await.title, "Payments");
+    h.handle.rename(sid("a"), None).await.unwrap();
+    assert_eq!(h.view("a").await.title, "Fix login");
+}
+
+#[tokio::test]
+async fn a_title_emits_sessions_once_per_change_and_outlives_the_session() {
+    let mut h = harness();
+    let (_, a) = h.register("a", "/w/alpha").await;
+    h.events.take();
+    h.presence.set_title(a.pid, "Fix login");
+    h.command(Command::Tick).await;
+    h.command(Command::Tick).await;
+    let events = h.events.take();
+    assert_eq!(sessions_events(&events), 1);
+    assert!(matches!(events.last(), Some(Event::Sessions(v)) if v[0].title == "Fix login"));
+    h.command(Command::Unregister {
+        id: sid("a"),
+        conn: a.conn,
+    })
+    .await;
+    assert_eq!(h.view("a").await.title, "Fix login");
 }
 
 #[tokio::test]

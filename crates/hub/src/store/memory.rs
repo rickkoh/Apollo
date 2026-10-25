@@ -8,6 +8,7 @@ struct Session {
     id: SessionId,
     cwd: String,
     title: Option<String>,
+    claude_title: Option<String>,
     last_seen: OffsetDateTime,
     last_read: i64,
 }
@@ -42,6 +43,7 @@ impl Store for MemoryStore {
                 id: info.id.clone(),
                 cwd: info.cwd.clone(),
                 title: None,
+                claude_title: None,
                 last_seen: now,
                 last_read: 0,
             }),
@@ -64,6 +66,7 @@ impl Store for MemoryStore {
                 id: s.id.clone(),
                 cwd: s.cwd.clone(),
                 title: s.title.clone(),
+                claude_title: s.claude_title.clone(),
                 last_seen: s.last_seen,
                 unread: self
                     .messages
@@ -152,6 +155,13 @@ impl Store for MemoryStore {
     fn rename(&mut self, id: &SessionId, title: Option<&str>) -> Result<(), StoreError> {
         if let Some(s) = self.session_mut(id) {
             s.title = title.map(str::to_owned);
+        }
+        Ok(())
+    }
+
+    fn set_claude_title(&mut self, id: &SessionId, title: &str) -> Result<(), StoreError> {
+        if let Some(s) = self.session_mut(id) {
+            s.claude_title = Some(title.to_owned());
         }
         Ok(())
     }

@@ -114,6 +114,8 @@ pub(crate) struct HubActor {
     links: HashMap<SessionId, Link>,
     /// Live sessions whose activity the presence knows, with when it last changed.
     activity: HashMap<SessionId, (Activity, OffsetDateTime)>,
+    /// Live sessions' titles from Claude Code, as last stored.
+    claude_titles: HashMap<SessionId, String>,
     target: Option<SessionId>,
     pending: HashMap<MessageId, (SessionId, Instant)>,
     pickups: HashMap<MessageId, Pickup>,
@@ -145,6 +147,7 @@ impl HubActor {
             events,
             links: HashMap::new(),
             activity: HashMap::new(),
+            claude_titles: HashMap::new(),
             target,
             pending: HashMap::new(),
             pickups: HashMap::new(),
@@ -242,7 +245,12 @@ impl HubActor {
 
     fn views(&self) -> Result<Vec<SessionView>, StoreError> {
         let records = self.store.sessions()?;
-        let base = |r: &SessionRecord| r.title.clone().unwrap_or_else(|| folder_name(&r.cwd));
+        let base = |r: &SessionRecord| {
+            r.title
+                .clone()
+                .or_else(|| r.claude_title.clone())
+                .unwrap_or_else(|| folder_name(&r.cwd))
+        };
         let mut live_titles: HashMap<String, u32> = HashMap::new();
         for r in records.iter().filter(|r| self.links.contains_key(&r.id)) {
             *live_titles.entry(base(r)).or_default() += 1;
@@ -346,6 +354,7 @@ impl HubActor {
         }
         self.links.remove(id);
         self.activity.remove(id);
+        self.claude_titles.remove(id);
         tracing::info!(session = %id, conn, "session unregistered");
         self.fail_pending_of(id, "session disconnected");
         self.emit_sessions();
@@ -515,8 +524,8 @@ impl HubActor {
         Ok(())
     }
 
-    /// Re-reads the live sessions' activity and tells the UI only when one changed.
-    fn refresh_activity(&mut self) {
+    /// Re-reads the live sessions' activity and titles and tells the UI only when one changed.
+    fn refresh_presence(&mut self) {
         let Some(presence) = self.presence.as_mut() else {
             return;
         };
@@ -528,11 +537,26 @@ impl HubActor {
             .iter()
             .filter_map(|(id, link)| Some((id.clone(), presence.activity(link.claude_pid)?)))
             .collect();
-        let changed = fresh.len() != self.activity.len()
+        let retitled: Vec<(SessionId, String)> = self
+            .links
+            .iter()
+            .filter_map(|(id, link)| Some((id.clone(), presence.title(link.claude_pid)?)))
+            .filter(|(id, title)| self.claude_titles.get(id) != Some(title))
+            .collect();
+        let mut changed = fresh.len() != self.activity.len()
             || fresh
                 .iter()
                 .any(|(id, (now, _))| self.activity.get(id).map(|(before, _)| before) != Some(now));
         self.activity = fresh;
+        for (id, title) in retitled {
+            match self.store.set_claude_title(&id, &title) {
+                Ok(()) => {
+                    self.claude_titles.insert(id, title);
+                    changed = true;
+                }
+                Err(err) => tracing::error!("storing a session title failed: {err}"),
+            }
+        }
         if changed {
             self.emit_sessions();
         }
@@ -540,7 +564,7 @@ impl HubActor {
 
     fn tick(&mut self) {
         self.end_restore_grace();
-        self.refresh_activity();
+        self.refresh_presence();
         self.check_pickups();
         let timeout = self.config.delivery_timeout;
         let expired: Vec<MessageId> = self
