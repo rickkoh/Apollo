@@ -2,6 +2,16 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.5.0 - 2026-10-25
+
+### Features
+
+- settings: make every overlay value a setting, with ranges from one table
+- overlay: an island grown out of the notch replaces the corner overlay
+
+### Fixes
+
+- show a failed clear-history, and log a delivery the channel can't write
 ## 0.4.0 - 2026-10-25
 
 ### Features
