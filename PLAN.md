@@ -605,8 +605,7 @@ export interface ChannelEnv { sessionId: string; projectDir: string; claudePid: 
 export function readEnv(env: NodeJS.ProcessEnv, ppid: number): ChannelEnv | { error: string }
 // discoveryPath = APOLLO_DISCOVERY ?? ~/Library/Application Support/com.rickkoh.apollo/hub.json
 
-// discovery.ts
-export interface Discovery { version: 1; port: number; token: string; pid: number }
+// discovery.ts; Discovery comes from the hub through ts-rs
 export async function readDiscovery(path: string): Promise<Discovery | null>   // null when missing or invalid
 
 // hub-client.ts

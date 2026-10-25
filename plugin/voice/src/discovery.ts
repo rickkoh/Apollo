@@ -1,11 +1,5 @@
 import { readFile } from 'node:fs/promises'
-
-export interface Discovery {
-    version: 1
-    port: number
-    token: string
-    pid: number
-}
+import type { Discovery } from '../../../shared/types/Discovery'
 
 function isDiscovery(value: unknown): value is Discovery {
     if (typeof value !== 'object' || value === null) return false

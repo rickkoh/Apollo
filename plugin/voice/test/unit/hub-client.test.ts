@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Discovery } from '../../src/discovery.ts'
+import type { Discovery } from '../../../../shared/types/Discovery'
 import type { ChannelEnv } from '../../src/env.ts'
 import { HubClient, type Deliver } from '../../src/hub-client.ts'
 import { FakeHub, TOKEN, until } from './fake-hub.ts'

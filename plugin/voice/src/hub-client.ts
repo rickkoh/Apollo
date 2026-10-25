@@ -1,6 +1,6 @@
 import type { ChannelFrame } from '../../../shared/types/ChannelFrame'
+import type { Discovery } from '../../../shared/types/Discovery'
 import type { HubFrame } from '../../../shared/types/HubFrame'
-import type { Discovery } from './discovery.ts'
 import type { ChannelEnv } from './env.ts'
 import { log } from './log.ts'
 

@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { Discovery } from '../../src/discovery.ts'
+import type { Discovery } from '../../../../shared/types/Discovery'
 
 export const TOKEN = 'b'.repeat(64)
 
