@@ -17,7 +17,7 @@ struct TrayItems {
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, OPEN_PANEL, "Open Control Panel", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, OPEN_PANEL, "Open Apollo", true, None::<&str>)?;
     let toggle = MenuItem::with_id(app, TOGGLE_OVERLAY, "Show Overlay", true, None::<&str>)?;
     let target = MenuItem::new(app, "Target: none", false, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT, "Quit Voice Bridge", true, Some("CmdOrCtrl+Q"))?;

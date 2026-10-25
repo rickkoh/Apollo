@@ -7,7 +7,7 @@ import Logo from './Logo.vue'
     <nav class="sidebar" aria-label="Main">
         <div class="brand" data-tauri-drag-region>
             <Logo />
-            <span>Voice Bridge</span>
+            <span>Apollo</span>
         </div>
         <RouterLink v-for="item in navigation" :key="item.path" :to="item.path" class="link">
             <span class="icon" aria-hidden="true">{{ item.icon }}</span>{{ item.label }}

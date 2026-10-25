@@ -713,7 +713,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 ### 9.6 Menu bar, app menu and Dock
 
 - **Menu bar item** (`tray.rs`): template icon (`icon_as_template(true)`), menu shown on left click:
-  **Open Control Panel**, **Show Overlay** / **Hide Overlay**, a disabled line with the current target, separator,
+  **Open Apollo**, **Show Overlay** / **Hide Overlay**, a disabled line with the current target, separator,
   **Quit Voice Bridge**. The target line and the show/hide label update on `target-changed` and on visibility changes.
 - **App menu** (`menu.rs`, D23): app menu (About, Quit) and the standard Edit menu (Undo, Redo, Cut, Copy, Paste,
   Select All). It is only visible while the panel is open, but its key equivalents work always.
@@ -916,8 +916,8 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 
 ```
 ┌──────────────┬───────────────────────────────────────────────────────────┐
-│ ◖◗ Voice     │  Good evening                                             │
-│    Bridge    │  ┌───────────────┐ ┌───────────────┐ ┌──────────────────┐ │
+│ ◖◗ Apollo    │  Good evening                                             │
+│              │  ┌───────────────┐ ┌───────────────┐ ┌──────────────────┐ │
 │              │  │ Overlay   On  │ │ Live sessions │ │ Target           │ │
 │ ⌂ Home       │  │               │ │ 2             │ │ orders.service   │ │
 │ ☰ Sessions   │  └───────────────┘ └───────────────┘ └──────────────────┘ │
