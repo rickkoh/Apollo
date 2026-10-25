@@ -238,6 +238,10 @@ Record every new decision and question here.
   description and its variables (`APOLLO_DISCOVERY`, `APOLLO_HOST`).
 - **D88 Nothing in the repository names an employer:** the bundle id is `com.rickkoh.apollo` (`.dev` for Apollo Dev),
   commits carry the owner's GitHub noreply identity, and examples use neutral names (`orders.service`).
+- **D89 `release.sh` makes the `.dmg` itself with one `hdiutil create -srcfolder`** (the app and an Applications link),
+  retried; Tauri builds only the app bundle and the update package. Tauri's DMG script mounts a scratch image, opens
+  it in Finder and converts it afterwards: a click in that window failed one release, and without Finder the convert
+  raced the system (`Resource temporarily unavailable`).
 - **D86 A release is cut from any clean checkout whose HEAD is `origin/main`** and pushes `HEAD:main` with its tag in
   one atomic push, so a worktree can release without moving the main checkout. The release commit is made and tagged
   before the build, so About's commit is the tagged one; a failure before the push drops both.
@@ -1501,7 +1505,8 @@ Phase 6 turns the working copy into an installed, self-updating Apollo while dev
    `git cliff --bumped-version` gives the version and `git cliff --unreleased` the notes. The `release` skill shows
    them; nothing goes on until the user agrees.
 2. `scripts/release.sh <version>`: bump every version (D72), regenerate `CHANGELOG.md` (D73), commit
-   `chore(release): v<version>`, tag, `tauri build` (stable config, ad-hoc signed, updater artifacts on), push
+   `chore(release): v<version>`, tag, `tauri build` of the app bundle (stable config, ad-hoc signed, updater artifacts
+   on), the `.dmg` (D89), push
    `HEAD:main` and the tag, create a draft GitHub Release with the notes, `Apollo.app.tar.gz`, its `.sig`, the `.dmg`
    and `latest.json`, then publish it (D84), so an installed app never sees a version whose files are missing.
 3. Never move or delete a pushed tag; a broken release is fixed by the next one.

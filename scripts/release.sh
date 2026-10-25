@@ -45,6 +45,20 @@ check_tests() {
     run "ui tests" npm --prefix apps/desktop test
 }
 
+# One `hdiutil create`, retried: a freshly built app can be briefly busy while the system scans it.
+make_dmg() {
+    local app=$1 out=$2 name=$3 stage attempt
+    stage=$(mktemp -d)
+    ditto "$app" "$stage/$name.app"
+    ln -s /Applications "$stage/Applications"
+    for attempt in 1 2 3; do
+        hdiutil create -quiet -volname "$name" -srcfolder "$stage" -ov -format UDZO "$out" && break
+        [ "$attempt" -lt 3 ] || fail "hdiutil couldn't create $out"
+        sleep 3
+    done
+    rm -rf "$stage"
+}
+
 next_version() {
     local bumped last
     bumped=$(git cliff --bumped-version 2>/dev/null)
@@ -100,13 +114,14 @@ release() {
     git tag -a "$tag" -m "$tag"
 
     step "build"
-    npm --prefix apps/desktop run -s tauri build -- --bundles app,dmg
-    local name bundle app dmg
+    npm --prefix apps/desktop run -s tauri build -- --bundles app
+    local name app dmg
     name=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").productName')
-    bundle=target/release/bundle
-    app="$bundle/macos/$name.app.tar.gz"
-    dmg="$bundle/dmg/${name}_${version}_aarch64.dmg"
-    for file in "$app" "$app.sig" "$dmg"; do [ -f "$file" ] || fail "the build left no $file"; done
+    app="target/release/bundle/macos/$name.app.tar.gz"
+    for file in "$app" "$app.sig"; do [ -f "$file" ] || fail "the build left no $file"; done
+    step "dmg"
+    dmg="$work/${name}_${version}_aarch64.dmg"
+    make_dmg "target/release/bundle/macos/$name.app" "$dmg" "$name"
 
     node -e '
         const fs = require("node:fs"), [out, version, notes, sig, url] = process.argv.slice(1)
