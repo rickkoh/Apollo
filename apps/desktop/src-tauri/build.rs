@@ -24,7 +24,6 @@ const COMMANDS: &[&str] = &[
     "update_status",
     "check_for_updates",
     "install_update",
-    "save_deploy_token",
     "open_at_login",
     "set_open_at_login",
 ];

@@ -92,7 +92,7 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     ))?;
     discovery::write(&paths.discovery, running.port, &token)?;
     let visible_at_launch = settings.get().overlay.visible_at_launch;
-    let updates = (channel == Channel::Stable).then(|| Updates::new(app.config().identifier.clone()));
+    let updates = (channel == Channel::Stable).then(Updates::new);
     app.manage(AppState::new(channel, paths, settings, updates, running));
 
     windows::overlay::create(app)?;
@@ -181,7 +181,6 @@ pub fn run() {
             commands::update_status,
             commands::check_for_updates,
             commands::install_update,
-            commands::save_deploy_token,
             commands::open_at_login,
             commands::set_open_at_login,
         ])

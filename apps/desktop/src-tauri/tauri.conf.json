@@ -18,7 +18,8 @@
   "bundle": {
     "active": true,
     "targets": [
-      "app"
+      "app",
+      "dmg"
     ],
     "icon": [
       "icons/32x32.png",
@@ -27,7 +28,8 @@
       "icons/icon.icns"
     ],
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
     },
     "resources": {
       "../../../plugin/.claude-plugin/marketplace.json": "plugin/.claude-plugin/marketplace.json",
@@ -35,6 +37,16 @@
       "../../../plugin/voice/.mcp.json": "plugin/voice/.mcp.json",
       "../../../plugin/voice/dist/channel.js": "plugin/voice/dist/channel.js",
       "../../../plugin/voice/dist/panel-bridge.js": "plugin/voice/dist/panel-bridge.js"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVFRTIyQkIzMjQ3OTJGRjkKUldUNUwza2tzeXZpWHZHU2xHNHl3Q2hMajA0ZzNOaCt3K2MyUi9MZUluekJHaXFpUFNjdXNKWnUK",
+      "endpoints": [
+        "https://github.com/rickkoh/Apollo/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
     }
   }
 }

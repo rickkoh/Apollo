@@ -1,10 +1,8 @@
-//! Self-update of the stable app (PLAN.md D56, D57, §23.3): the feed and the download carry the GitLab deploy token
-//! kept in the Keychain.
+//! Self-update of the stable app from the public GitHub releases (PLAN.md D56, D83–D85, §23.3).
 
 use std::sync::Mutex;
 use std::time::Duration;
 
-use security_framework::passwords;
 use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_updater::{Update, UpdaterExt};
@@ -15,17 +13,12 @@ use crate::events::{self, UPDATE_STATUS};
 use crate::tray;
 
 pub const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
-/// The request header GitLab reads a deploy token from (S7).
-const TOKEN_HEADER: &str = "Deploy-Token";
-const TOKEN_ACCOUNT: &str = "gitlab-deploy-token";
-/// `errSecItemNotFound`.
-const NOT_FOUND: i32 = -25300;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(tag = "state", rename_all = "snake_case")]
 #[ts(export)]
 pub enum UpdateState {
-    /// Not checked since launch or since the token changed.
+    /// Not checked since launch.
     Idle,
     Checking,
     UpToDate,
@@ -45,8 +38,6 @@ pub enum UpdateState {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct UpdateStatus {
-    /// A deploy token is in the Keychain; without one, updates are off (D57).
-    pub token: bool,
     pub state: UpdateState,
     #[serde(with = "time::serde::rfc3339::option")]
     #[ts(type = "string | null")]
@@ -54,19 +45,14 @@ pub struct UpdateStatus {
 }
 
 pub struct Updates {
-    /// The Keychain service holding the token: the bundle identifier.
-    service: String,
     status: Mutex<UpdateStatus>,
     found: Mutex<Option<Update>>,
 }
 
 impl Updates {
-    pub fn new(service: String) -> Self {
-        let token = read_token(&service).is_some();
+    pub fn new() -> Self {
         Self {
-            service,
             status: Mutex::new(UpdateStatus {
-                token,
                 state: UpdateState::Idle,
                 checked_at: None,
             }),
@@ -94,47 +80,16 @@ impl Updates {
         status
     }
 
-    /// Stores the token, or removes it when `None`; a check follows separately.
-    pub fn save_token(&self, app: &AppHandle, token: Option<&str>) -> Result<UpdateStatus, String> {
-        match token.map(str::trim) {
-            Some("") => return Err("The token is empty".into()),
-            Some(token) => passwords::set_generic_password(&self.service, TOKEN_ACCOUNT, token.as_bytes())
-                .map_err(|err| err.to_string())?,
-            None => match passwords::delete_generic_password(&self.service, TOKEN_ACCOUNT) {
-                Err(err) if err.code() != NOT_FOUND => return Err(err.to_string()),
-                _ => {}
-            },
-        }
-        self.found.lock().expect("found update lock").take();
-        Ok(self.set(app, |s| {
-            s.token = token.is_some();
-            s.state = UpdateState::Idle;
-            s.checked_at = None;
-        }))
-    }
-
     pub async fn check(&self, app: &AppHandle) -> UpdateStatus {
-        let Some(token) = read_token(&self.service) else {
-            return self.set(app, |s| {
-                s.token = false;
-                s.state = UpdateState::Idle;
-            });
-        };
         if matches!(
             self.status().state,
             UpdateState::Checking | UpdateState::Installing { .. }
         ) {
             return self.status();
         }
-        self.set(app, |s| {
-            s.token = true;
-            s.state = UpdateState::Checking;
-        });
-        let result = match app.updater_builder().header(TOKEN_HEADER, token) {
-            Ok(builder) => match builder.build() {
-                Ok(updater) => updater.check().await,
-                Err(err) => Err(err),
-            },
+        self.set(app, |s| s.state = UpdateState::Checking);
+        let result = match app.updater() {
+            Ok(updater) => updater.check().await,
             Err(err) => Err(err),
         };
         let state = match result {
@@ -181,18 +136,6 @@ impl Updates {
                 });
                 Err(message)
             }
-        }
-    }
-}
-
-fn read_token(service: &str) -> Option<String> {
-    match passwords::get_generic_password(service, TOKEN_ACCOUNT) {
-        Ok(bytes) => String::from_utf8(bytes).ok(),
-        Err(err) => {
-            if err.code() != NOT_FOUND {
-                tracing::warn!("reading the deploy token from the Keychain failed: {err}");
-            }
-            None
         }
     }
 }

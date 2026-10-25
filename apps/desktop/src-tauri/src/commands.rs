@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::channel::Channel;
 use crate::cli::{self, CliStatus, Launcher, Route};
-use crate::error::{UiError, UiErrorCode};
+use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
 use crate::macos;
 use crate::panel::{PanelLauncher, PanelStatus};
@@ -218,24 +218,6 @@ pub async fn check_for_updates(app: AppHandle, state: State<'_, AppState>) -> Co
 #[tauri::command]
 pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
     updates(&state)?.install(&app).await.map_err(UiError::internal)
-}
-
-/// Saves the deploy token to the Keychain (`None` removes it), then checks.
-#[tauri::command]
-pub async fn save_deploy_token(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    token: Option<String>,
-) -> CommandResult<UpdateStatus> {
-    let updates = updates(&state)?;
-    let status = updates
-        .save_token(&app, token.as_deref())
-        .map_err(|message| UiError::new(UiErrorCode::InvalidSettings, message))?;
-    Ok(if status.token {
-        updates.check(&app).await
-    } else {
-        status
-    })
 }
 
 /// `None` in Apollo Dev, which doesn't offer it (D76).

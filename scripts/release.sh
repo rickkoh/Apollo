@@ -1,13 +1,11 @@
 #!/bin/bash
 # Apollo releases (PLAN.md §23.2).
-#   scripts/release.sh preflight   check branch, tree, origin, tests and lint; print the next version, then its notes
-#   scripts/release.sh <version>   bump, build, upload, commit, tag, push, publish the GitLab Release, then the feed
+#   scripts/release.sh preflight   check the tree, origin, tests and lint; print the next version, then its notes
+#   scripts/release.sh <version>   bump, commit, tag, build, push, publish the GitHub Release with the build and the feed
 set -euo pipefail
 
-HOST=gitlab.example.com
-PROJECT=1234
-PACKAGES="https://$HOST/api/v4/projects/$PROJECT/packages/generic"
-FEED_PATH=apollo-feed/latest/latest.json
+REPO=rickkoh/Apollo
+BRANCH=main
 KEY_FILE="$HOME/.tauri/apollo-updater.key"
 KEY_PASSWORD_SERVICE=apollo-updater-key
 BUMPED=(Cargo.toml Cargo.lock CHANGELOG.md
@@ -21,19 +19,18 @@ export PATH="/opt/homebrew/opt/rustup/bin:$PATH"
 fail() { echo "release: $*" >&2; exit 1; }
 step() { echo "==> $*" >&2; }
 
-check_tree() {
-    [ "$(git symbolic-ref --short HEAD)" = master ] || fail "not on master"
-    [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "the working tree has uncommitted changes"
-    git fetch --quiet --tags origin
-    [ "$(git rev-list --left-right --count master...origin/master)" = "$(printf '0\t0')" ] ||
-        fail "master and origin/master differ"
-}
-
 run() {
     local label=$1
     shift
     step "$label"
     "$@" || fail "$label failed"
+}
+
+# Any clean checkout whose HEAD is origin's release branch, so a worktree can release without touching another.
+check_tree() {
+    [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "the working tree has uncommitted changes"
+    git fetch --quiet --tags origin
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ] || fail "HEAD isn't origin/$BRANCH"
 }
 
 check_tests() {
@@ -77,11 +74,6 @@ set_versions() {
     ' plugin/voice/.claude-plugin/plugin.json "$version"
 }
 
-upload() {
-    local file=$1 path=$2
-    glab api --hostname "$HOST" --method PUT "projects/$PROJECT/packages/generic/$path" --input "$file" >/dev/null
-}
-
 release() {
     local version=$1 tag="v$1"
     [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "version must be X.Y.Z, got $version"
@@ -90,16 +82,22 @@ release() {
     [ -r "$KEY_FILE" ] || fail "no updater key at $KEY_FILE"
     TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(security find-generic-password -s "$KEY_PASSWORD_SERVICE" -w) ||
         fail "no Keychain item $KEY_PASSWORD_SERVICE holding the updater key's password"
-    export TAURI_SIGNING_PRIVATE_KEY="$KEY_FILE" TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+    TAURI_SIGNING_PRIVATE_KEY=$(cat "$KEY_FILE")
+    export TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
-    local work committed=false
+    local start work pushed=false
+    start=$(git rev-parse HEAD)
     work=$(mktemp -d)
-    trap '$committed || git checkout -- "${BUMPED[@]}"; rm -rf "$work"' EXIT
+    trap '$pushed || { git tag -d "$tag" >/dev/null 2>&1; git reset --quiet --hard "$start"; }; rm -rf "$work"' EXIT
 
     step "bump to $version"
     set_versions "$version"
     git cliff --tag "$tag" --output CHANGELOG.md 2>/dev/null
     git cliff --unreleased --tag "$tag" --strip all 2>/dev/null >"$work/notes.md"
+    run "lockfile" cargo update --workspace --offline --quiet
+    git add -- "${BUMPED[@]}"
+    git commit --quiet -m "chore(release): $tag"
+    git tag -a "$tag" -m "$tag"
 
     step "build"
     npm --prefix apps/desktop run -s tauri build -- --bundles app,dmg
@@ -110,28 +108,6 @@ release() {
     dmg="$bundle/dmg/${name}_${version}_aarch64.dmg"
     for file in "$app" "$app.sig" "$dmg"; do [ -f "$file" ] || fail "the build left no $file"; done
 
-    step "upload apollo/$version/"
-    local files=("$name.app.tar.gz" "$name.app.tar.gz.sig" "${name}_${version}_aarch64.dmg")
-    upload "$app" "apollo/$version/${files[0]}"
-    upload "$app.sig" "apollo/$version/${files[1]}"
-    upload "$dmg" "apollo/$version/${files[2]}"
-
-    step "commit, tag and push $tag"
-    git add -- "${BUMPED[@]}"
-    git commit --quiet -m "chore(release): $tag"
-    committed=true
-    git tag -a "$tag" -m "$tag"
-    git push --quiet --atomic origin master "$tag"
-
-    step "GitLab Release"
-    local links
-    links=$(node -e '
-        const [base, ...files] = process.argv.slice(1)
-        console.log(JSON.stringify(files.map(name => ({ name, url: `${base}/${name}`, link_type: "package" }))))
-    ' "$PACKAGES/apollo/$version" "${files[@]}")
-    glab release create "$tag" --name "$tag" --notes-file "$work/notes.md" --assets-links "$links"
-
-    step "feed"
     node -e '
         const fs = require("node:fs"), [out, version, notes, sig, url] = process.argv.slice(1)
         fs.writeFileSync(out, JSON.stringify({
@@ -140,9 +116,18 @@ release() {
             pub_date: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
             platforms: { "darwin-aarch64": { signature: fs.readFileSync(sig, "utf8"), url } },
         }, null, 2) + "\n")
-    ' "$work/latest.json" "$version" "$work/notes.md" "$app.sig" "$PACKAGES/apollo/$version/${files[0]}"
-    upload "$work/latest.json" "$FEED_PATH"
-    echo "released $tag"
+    ' "$work/latest.json" "$version" "$work/notes.md" "$app.sig" \
+        "https://github.com/$REPO/releases/download/$tag/$name.app.tar.gz"
+
+    step "push $tag"
+    git push --quiet --atomic origin "HEAD:$BRANCH" "$tag"
+    pushed=true
+
+    step "GitHub Release (draft until every file is up)"
+    gh release create "$tag" --repo "$REPO" --verify-tag --draft --title "$tag" --notes-file "$work/notes.md" \
+        "$app" "$app.sig" "$dmg" "$work/latest.json"
+    gh release edit "$tag" --repo "$REPO" --draft=false --latest
+    echo "released $tag: https://github.com/$REPO/releases/tag/$tag"
 }
 
 case "${1:-}" in

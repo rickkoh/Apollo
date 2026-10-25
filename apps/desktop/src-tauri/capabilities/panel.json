@@ -28,7 +28,6 @@
     "allow-update-status",
     "allow-check-for-updates",
     "allow-install-update",
-    "allow-save-deploy-token",
     "allow-open-at-login",
     "allow-set-open-at-login",
     "core:window:allow-start-dragging"

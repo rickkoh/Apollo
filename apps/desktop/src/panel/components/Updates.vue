@@ -7,7 +7,6 @@ import type { UpdateStatus } from '../../shared/types'
 import SettingRow from './SettingRow.vue'
 
 const status = ref<UpdateStatus | null>(null)
-const token = ref('')
 const busy = ref(false)
 const error = ref<string | null>(null)
 
@@ -26,12 +25,6 @@ async function run(action: () => Promise<unknown>): Promise<void> {
     }
 }
 
-const saveToken = () =>
-    run(async () => {
-        status.value = await api.saveDeployToken(token.value)
-        token.value = ''
-    })
-const removeToken = () => run(async () => (status.value = await api.saveDeployToken(null)))
 const check = () => run(async () => (status.value = await api.checkForUpdates()))
 const install = () => run(api.installUpdate)
 
@@ -39,7 +32,6 @@ const state = computed(() => status.value?.state ?? null)
 const hint = computed(() => {
     const s = status.value
     if (!s) return 'Checking…'
-    if (!s.token) return 'Off: save a GitLab deploy token below to turn updates on'
     switch (s.state.state) {
         case 'idle':
             return 'Not checked yet'
@@ -69,7 +61,7 @@ const hint = computed(() => {
             Update to v{{ state.version }}
         </button>
         <button
-            v-else-if="status?.token"
+            v-else-if="status"
             class="button"
             type="button"
             :disabled="busy || state?.state === 'checking' || state?.state === 'installing'"
@@ -79,30 +71,10 @@ const hint = computed(() => {
         </button>
     </SettingRow>
     <pre v-if="state?.state === 'available' && state.notes" class="notes">{{ state.notes }}</pre>
-    <SettingRow
-        v-if="status && !status.token"
-        label="GitLab deploy token"
-        hint="A token with read_package_registry on the Apollo project; kept in the Keychain"
-    >
-        <input v-model="token" type="password" aria-label="GitLab deploy token" autocomplete="off" @keydown.enter="saveToken" />
-        <button class="button" type="button" :disabled="busy || !token.trim()" @click="saveToken">Save</button>
-    </SettingRow>
-    <SettingRow v-else-if="status" label="GitLab deploy token" hint="Saved in the Keychain">
-        <button class="button" type="button" :disabled="busy" @click="removeToken">Remove</button>
-    </SettingRow>
     <p v-if="error" class="error-text">{{ error }}</p>
 </template>
 
 <style scoped>
-input[type='password'] {
-    width: 220px;
-    padding: 5px 8px;
-    border: 1px solid var(--island-border);
-    border-radius: 8px;
-    background: var(--panel-bg);
-    color: var(--text);
-    font: inherit;
-}
 .notes {
     margin: 0 0 12px;
     padding: 8px 10px;

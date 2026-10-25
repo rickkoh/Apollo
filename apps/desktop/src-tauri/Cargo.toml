@@ -18,7 +18,6 @@ objc2 = "0.6"
 objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 objc2-service-management = "0.3"
-security-framework = "3.7"
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png"] }
