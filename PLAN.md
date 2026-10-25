@@ -34,6 +34,7 @@ Record every new decision and question here.
 - **R14 Any terminal.** Voice sessions run in any terminal, Cursor's integrated terminal included.
 - **R15 Activity.** The overlay shows whether the target is working, since a message waits until Claude's turn ends.
 - **R16 IDE panels.** Voice also reaches Claude Code sessions in Cursor's and VS Code's panels.
+- **R17 Session titles.** Sessions carry the title Claude Code gives them, so sessions in one folder can be told apart.
 
 ## 2. Decisions
 
@@ -245,6 +246,12 @@ Record every new decision and question here.
 - **D86 A release is cut from any clean checkout whose HEAD is `origin/main`** and pushes `HEAD:main` with its tag in
   one atomic push, so a worktree can release without moving the main checkout. The release commit is made and tagged
   before the build, so About's commit is the tagged one; a failure before the push drops both.
+- **D90 A session's title is the app's rename, else Claude Code's, else the folder name** (R17, §22.5). Claude Code's
+  title is the latest `/rename` in the session's transcript, else its own title. The hub finds the transcript through
+  the registry's session id, so the title follows the conversation in the terminal. Saving Rename with the name
+  unchanged saves nothing, so opening it never pins Claude's title.
+- **D91 Claude's title is stored with the session** (`claude_title`, schema v2), so an ended session keeps its name in
+  the picker and on Sessions; the actor writes it only when it changes.
 
 ## 3. Architecture
 
@@ -442,6 +449,7 @@ pub trait Store: Send {
     fn history(&self, id: &SessionId, before: Option<MessageId>, limit: u32) -> Result<Vec<Message>, StoreError>;
     fn mark_read(&mut self, id: &SessionId, upto: MessageId) -> Result<(), StoreError>;
     fn rename(&mut self, id: &SessionId, title: Option<&str>) -> Result<(), StoreError>;
+    fn set_claude_title(&mut self, id: &SessionId, title: &str) -> Result<(), StoreError>;
     fn forget(&mut self, id: &SessionId) -> Result<(), StoreError>;
     fn target(&self) -> Result<Option<SessionId>, StoreError>;
     fn set_target(&mut self, id: Option<&SessionId>) -> Result<(), StoreError>;
@@ -450,6 +458,7 @@ pub trait Store: Send {
 
 pub trait Presence: Send {
     fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)>;
+    fn title(&mut self, pid: u32) -> Option<String>;
 }
 
 pub trait HubEvents: Send + Sync {
@@ -470,7 +479,8 @@ and `HubHandle` send commands and await answers over oneshot channels. No locks,
 calls never block the async runtime.
 
 State: `links: HashMap<SessionId, Link>` (connection id + outbound frame sender), `target: Option<SessionId>`,
-`pending: HashMap<MessageId, Instant>` (awaiting `delivered`), `activity` (live sessions', from the presence),
+`pending: HashMap<MessageId, Instant>` (awaiting `delivered`), `activity` and `claude_titles` (live sessions', from the
+presence),
 `pickups` (delivered messages watched for a turn, D64), the store, the presence, the events sink.
 
 | Command | Sent by | Effect |
@@ -481,7 +491,7 @@ State: `links: HashMap<SessionId, Link>` (connection id + outbound frame sender)
 | `Reply { id, text }` | server | Insert `from_session` / `received`; touch the session; emit `message_added`, `sessions_changed` (unread). |
 | `Send { text, answer }` | handle | Empty → `SendError::Empty`; too long → `TooLarge`; no target → `NoTarget`; target not live → `TargetOffline`. Else insert `to_session` / `queued`, push `deliver`, add to `pending`, answer with the message, emit `message_added`. |
 | `SetTarget { id, answer }` | handle | Unknown or ended → error; else set, persist, emit `target_changed`, `sessions_changed`. |
-| `Tick` | timer, every second | Fail pending messages older than `delivery_timeout` ("no acknowledgement"); refresh live sessions' activity, emitting `sessions_changed` on a change; flag watched messages whose session stayed idle past `pickup_timeout`. |
+| `Tick` | timer, every second | Fail pending messages older than `delivery_timeout` ("no acknowledgement"); refresh live sessions' activity and titles, storing a changed title (D91) and emitting `sessions_changed` on a change; flag watched messages whose session stayed idle past `pickup_timeout`. |
 | `Sessions`, `Status`, `History`, `MarkRead`, `Rename`, `Forget` | handle | Reads and edits. `Forget` refuses a live session. |
 | `Shutdown` | `RunningHub` | Close all links normally; stop. |
 
@@ -490,8 +500,8 @@ Rules:
 - **Target restore.** At start the target is read from the store. It is not live until that session registers.
 - **Automatic target.** A registering session becomes the target only when there is no live target. The target is
   never switched away from a live session automatically.
-- **Titles.** The user's rename, else the folder name of `cwd`; when two live sessions share a title, the first four
-  characters of the session id are appended.
+- **Titles.** The user's rename, else Claude Code's title (D90), else the folder name of `cwd`; when two live sessions
+  share a title, the first four characters of the session id are appended.
 - **Unread.** Count of `from_session` messages after the session's `last_read`. The overlay marks the target's replies
   read as it shows them.
 
@@ -690,6 +700,7 @@ CREATE TABLE meta (
 );
 ```
 
+- v2 adds `claude_title TEXT` to `sessions` (D91).
 - `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;` at open.
 - Migrations are an ordered list of SQL strings; `PRAGMA user_version` records the last one applied.
 - `meta` holds `target`.
@@ -1000,7 +1011,7 @@ A 36 px strip across the top of the window drags it, as in Wispr Flow; pages scr
 | Page | Content |
 |---|---|
 | Home | greeting; status cards (overlay on or off with a toggle, live sessions, target); the `cv` command with Copy, or an Install button when `cv` isn't installed; recent messages across sessions grouped by day |
-| Sessions | table of live and ended sessions: title, folder, last activity, unread; row actions **Set as target**, **Rename**, **Forget** (ended only); a row opens Session detail |
+| Sessions | table of live and ended sessions: title, folder, last activity, unread; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
 | Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
 | Settings | **General:** show the overlay at launch. **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
@@ -1045,7 +1056,7 @@ contrast meets WCAG AA in both themes.
 | Channel | `node:test` with a fake hub (`ws` dev dependency) and a fake MCP client | env errors, discovery changes, reconnect and backoff, notify-then-ack order, `reply` while disconnected, panel instructions; the panel bridge over fake streams: forwarding, `channel_enable` after `initialize`, retries, hidden answers |
 | End to end | `node:test` driving `hub-dev` and two real `dist/channel.js` processes | each message reaches only its session; replies tagged; a closed session drops; hub restart → reconnect within 10 s; delivery timeout → failed |
 | Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv`; the generated `cv` run against a stub `claude` with a matching, a wrong and no approval file; approval states; plugin install steps through a fake `PluginCli` |
-| Presence | Rust tests on a temp sessions folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file |
+| Presence | Rust tests on a temp Claude config folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file; titles: any project folder, `/rename` over Claude's own, a growing transcript, a tail without a title, a quoted title line |
 | UI | component tests later, once the islands settle | |
 
 The prototype and spikes were removed after phase 3; they remain in git history (commit `d8b64d8`, `reference/`).
@@ -1143,6 +1154,16 @@ Checks:
 - With the setting removed, new panel tabs start as before.
 - The bridge and instruction tests are green; Settings shows each editor's state. Lint clean.
 
+### Phase 5c — Session titles (§22.5)
+
+Checks:
+- A new `cv-dev` session shows its folder name, and Claude's title after a typed prompt; after `/clear` and another
+  typed prompt it takes the new conversation's title. A `/rename` replaces it and survives `/clear`. A session started
+  by dictation keeps its folder name.
+- A rename on Sessions overrides it and an empty rename returns to it; Rename left unchanged keeps following Claude.
+- An ended session keeps its title; an existing `voice.db` migrates to v2 with its sessions intact.
+- The §13 rows for Hub actor, Store and Presence are green. Lint clean.
+
 ### Phase 6 — Apollo: channels, releases and self-update (§23)
 
 After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater replacing an ad-hoc-signed
@@ -1203,10 +1224,13 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q19** A message that arrives mid-turn reaches Claude as a queued command at the next tool boundary, and in S5 Claude
   declined to act on it as not coming from the user. Should the channel instructions say mid-turn voice messages are
   the user too? Check with a dictation sent during a long turn.
+- **Q22** Now that titles describe the conversation, should the picker show the folder as a dimmed second line, so
+  sessions from two projects with similar titles stay apart? Today it is a tooltip there and a column on Sessions.
 
 Answered: Q18 (D85), Q2 (Wispr Flow pastes into a Tauri window, S2), Q4 (plugin channel identity, S1), Q5 (D49), Q6
 (full-screen support: yes, D20), Q7 (no window buttons, R1), Q8 (Dock only with the panel, R5), Q9 (memory means local
-app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26), Q15 (D35).
+app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26), Q15 (D35), Q23 (a session started by
+dictation keeps its folder name until it has a title, §22.5).
 
 ## 19. Spikes
 
@@ -1455,12 +1479,12 @@ pub trait Presence: Send {
 }
 ```
 
-- `ClaudeSessions` reads `<dir>/<pid>.json` for each live session's Claude pid (the channel's parent, sent in
+- `ClaudeSessions` reads `sessions/<pid>.json` under Claude Code's config folder for each live session's Claude pid (the channel's parent, sent in
   `hello`): `status` and `statusUpdatedAt`, other fields ignored. It never lists the folder, so `.key` files are never
   touched. `busy` and `waiting` (a permission prompt) are busy; `idle` and `shell` (a background command after the
   turn) are idle. An unknown status or a malformed or missing file reads as unknown and is logged once per kind of
   problem, so format drift shows in the log.
-- The folder is `$CLAUDE_CONFIG_DIR/sessions`, else `~/.claude/sessions`, with `CLAUDE_CONFIG_DIR` from the login shell
+- The config folder is `$CLAUDE_CONFIG_DIR`, else `~/.claude`, with `CLAUDE_CONFIG_DIR` from the login shell
   (D65); `hub-dev` uses its own environment, and server tests pass `None`.
 - The actor refreshes live sessions on its `Tick`, skips when none is live, and emits `sessions_changed` only when an
   activity changes. `SessionView.activity` is set for live sessions (ts-rs → `shared/types/Activity.ts`).
@@ -1471,7 +1495,36 @@ pub trait Presence: Send {
 - Fallback if the format drifts: hooks in the voice plugin (`UserPromptSubmit`, `Stop`) reporting through a new
   `activity` frame (protocol v2). Built only if needed.
 
-### 22.5 Not pursued
+### 22.5 Titles (R17)
+
+```rust
+pub trait Presence: Send {
+    fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)>;
+    fn title(&mut self, pid: u32) -> Option<String>;
+}
+```
+
+- Claude Code appends title lines to the session's transcript, `projects/<folder>/<session id>.jsonl` under the config
+  folder: `{"type":"custom-title","customTitle":…}` for `/rename` (a panel's rename too) and
+  `{"type":"ai-title","aiTitle":…}` for its own title, written after the first prompt. It re-appends them as the
+  transcript grows and writes no `ai-title` once a `custom-title` exists. The format is undocumented.
+- `title` reads `sessionId` from `sessions/<pid>.json`, finds `<sessionId>.jsonl` in any project folder once (the
+  folder's name follows Claude Code's own rule), and re-reads the last 64 KiB whenever the file's size changes: the
+  latest `custom-title` there, else the latest `ai-title`. A tail without a title keeps the last one found; no
+  transcript yet means no title.
+- Across 202 transcripts with a title, up to 8 MB, the latest title line was never more than 32 KiB from the end.
+- Claude Code writes `ai-title` only when the session's first prompt was typed: 200 of 207 typed-first transcripts
+  had one, 0 of 13 that began with a dictation did (one of them had typed prompts later). A session started by voice
+  keeps its folder name until `/rename`, which is fine (Q23).
+- `/clear` starts a new transcript under a new session id. The channel keeps the old id in its environment while
+  `sessions/<pid>.json` moves to the new one, which is why `title` goes through the registry. A `/rename` carries
+  across `/clear`: Claude Code writes the `custom-title` into the new transcript; otherwise the title becomes the new
+  conversation's own. `/rename` also sets the registry's
+  `name`, with `nameSource: "user"` (otherwise `"derived"`).
+- The actor reads titles on its `Tick` with activity, stores a changed one (D91) and emits `sessions_changed` once.
+- If the format drifts, titles read as none and sessions show their folder names, as before.
+
+### 22.6 Not pursued
 
 - Cross-session messages as the delivery path (D48).
 - The hidden `--managed-settings` flag in `cv`: undocumented, and a launcher approving its own channel defeats the
