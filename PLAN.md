@@ -48,7 +48,8 @@ Record every new decision and question here.
 - **D6 A proper hub with a voice plugin, no Agent SDK.** Sessions stay normal terminal Claude Code sessions.
 - **D7 The overlay and control panel are one Tauri v2 app.**
 - **D8 The plugin loads per session with `--plugin-dir`, never installed.** Its channel is `plugin:voice@inline` in
-  the flag, so the launcher is the only way in and no other session runs the channel.
+  the flag, so the launcher is the only way in and no other session runs the channel. Phase 5 moved `cv` to the
+  installed plugin (D44); `bin/cv-dev` keeps this route.
 - **D9 A channel identifies its session from `CLAUDE_CODE_SESSION_ID` and `CLAUDE_PROJECT_DIR`,** which Claude Code
   sets on MCP server processes (observed, not documented).
 - **D10 The hub is a Rust library crate that runs inside the Tauri app.** One process, no sidecar to supervise and no
@@ -112,34 +113,39 @@ Record every new decision and question here.
   command `recent_messages`, rather than one `history` call per session.
 - **D41 `about` and `reveal_data_folder` commands** back Settings → About (version, data folder, Reveal in Finder).
 - **D42 `cv` status reads `PATH` from the user's login shell** (`$SHELL -ilc`), falling back to the app's own: an app
-  started from Finder doesn't inherit what shell profiles add. `CliStatus` also carries `upToDate` (our launcher points
-  at this copy of the app), which drives Install vs Reinstall.
+  started from Finder doesn't inherit what shell profiles add. `CliStatus` also carries `upToDate` (the launcher is
+  this app's script), which drives Install vs Reinstall.
 - **D43 The app menu gains a standard Window menu** (Minimize, Close Window) so ⌘W hides the panel.
 - **D30 ts-rs exports from every crate into one `shared/types/`** via `TS_RS_EXPORT_DIR` in `.cargo/config.toml`,
   including the shell's `Settings`, `UiError` and `CliStatus`.
-- **D44 S4 picks the no-dialog route:** the first of `inline`, `per-session` and `everywhere` that passes (§22.2). If
-  none passes, `cv` keeps the development flag and R13 is recorded as blocked.
+- **D44 S4 picked `per-session`** (§22.2): the plugin is installed from a marketplace the app bundles, disabled
+  user-wide, and enabled per session by `cv` with `--settings`, so `--channels` loads it without the dialog. The
+  drop-in approval file was read and `channelsEnabled` wasn't needed. `inline` stays the fallback if per-session
+  enabling ever breaks; without an approval `cv` keeps the development flag.
 - **D45 Channel approval is one managed drop-in file** holding the voice plugin's `allowedChannelPlugins` entry,
   written once by the user with a `sudo` command the panel shows; the app only reads it. Personal login only; on an
   organization login the admin decides (Q1).
-- **D46 `cv` takes the approved route when the approval file exists, and the development flag otherwise.**
-  `bin/cv-dev` always uses the development flag.
+- **D46 `cv` takes the approved route only when the approval file holds our entry as the approval command writes
+  it** (a fixed-string `grep`), and the development flag otherwise, so a hand-edited or foreign file falls back to the
+  dialog. `bin/cv-dev` always uses the development flag.
 - **D47 Voice reaches terminal sessions only, through `cv`,** Cursor's integrated terminal included. IDE panels run
-  Claude Code as an SDK host and stay out of reach (§16, S6).
+  Claude Code as an SDK host and stay out of reach (§16).
 - **D48 Cross-session messaging is not a delivery path.** Receivers treat peer messages as information, not user
   consent; Claude answers with `SendMessage` to a peer session, not to the overlay; the socket framing is undocumented.
-- **D49 Activity comes from Claude Code's session registry** through a hub `Presence` port scanned on the actor's
-  tick, matched on session id, degrading to no indicator (§22.4). Answers Q5 without plugin hooks.
-- **D50 (optional) Registry sessions without a channel show as "Not voice-ready"** in the picker and on Sessions;
-  never stored, never targetable.
+- **D49 Activity comes from Claude Code's session registry,** read per live session as `<claude pid>.json` (the
+  channel's parent pid, sent in `hello`) on the actor's tick through a hub `Presence` port: `busy` and `waiting` read
+  as busy, `idle` and `shell` as idle, anything else as unknown (§22.4). Answers Q5 without plugin hooks.
 - **D51 The project is called Apollo** (was Voice Bridge): app "Apollo", bundle id `com.rickkoh.apollo`, crates,
-  plugin and marketplace (`apollo`), env vars (`APOLLO_DISCOVERY`, `APOLLO_CV`), the approval file
+  plugin and marketplace (`apollo`), env vars (`APOLLO_DISCOVERY`), the approval file
   (`managed-settings.d/apollo.json`, so the one-time `sudo` approval is re-run) and the folder `~/Desktop/apollo`. The
-  terminal command stays `cv`. Data under the old identifier is test data and is not migrated.
+  terminal command stays `cv`. Data under the old identifier is test data and is not migrated. The marketplace,
+  approval file and approval entry are constants in `cli.rs`.
 - **D52 Two channels on one Mac.** Stable: "Apollo", installed in /Applications, `com.rickkoh.apollo`, launcher `cv`.
   Dev: "Apollo Dev" from `tauri dev` with `tauri.dev.conf.json` layered on, `com.rickkoh.apollo.dev`, launcher
   `cv-dev` (development flag, D46), overlay bottom-left with a DEV tag. Separate data folders, discovery files and
-  single-instance locks; each launcher sets `APOLLO_DISCOVERY` for its channel.
+  single-instance locks; each launcher sets `APOLLO_DISCOVERY` for its channel. Only the stable app runs the plugin
+  installer; Apollo Dev's `cv-dev` loads the working copy with `--plugin-dir` and the development flag, so the two apps
+  never re-point the shared marketplace at their own bundles.
 - **D53 One version source:** `workspace.package.version` in `Cargo.toml` (Tauri reads it). About shows version,
   channel and git commit.
 - **D54 Changelog from conventional commits with `git-cliff`:** `feat` bumps minor, `fix` patch, a breaking change
@@ -160,6 +166,16 @@ Record every new decision and question here.
   forward-only and the app refuses a database newer than it knows, with a clear message.
 - **D60 A `release` skill:** check the tree and tests, compute the version and notes, show them and
   ask, then `scripts/release.sh` bumps, builds, uploads, writes the feed, commits, tags and pushes.
+- **D64 A message delivered to an idle session that starts no turn within `pickup_timeout` (10 s) is flagged**
+  "Claude hasn't picked this up", reusing `detail` on `delivered`, and the overlay shows it under the echo card. A
+  refused channel still connects and acknowledges, and no file check sees an organization's allowlist. Any change of
+  the session's `statusUpdatedAt` counts as heard, so a missed busy phase never flags.
+- **D65 The shell reads `CLAUDE_CONFIG_DIR` from the login shell on a background thread** (`login_shell_var`, D42);
+  activity reads as unknown until it answers, so a slow shell profile never delays startup.
+- **D66 Install keeps the plugin in line with this app:** it re-adds the `voice-bridge` marketplace when its path isn't
+  this app's `<resource dir>/plugin`, reinstalls when the installed `dist/channel.js` or `.mcp.json` differ from the
+  bundle's, and disables the plugin user-wide; each step runs only when needed, through a `PluginCli` port. Settings
+  reads it through its own `plugin_status` command, since that runs `claude`.
 
 ## 3. Architecture
 
@@ -226,6 +242,8 @@ voice-bridge/
     src/store/mod.rs              Store trait
     src/store/sqlite.rs           SqliteStore + migrations
     src/store/memory.rs           MemoryStore for tests
+    src/presence/mod.rs           Presence trait, Activity
+    src/presence/claude.rs        ClaudeSessions: Claude Code's session registry
     src/events.rs                 HubEvents trait
     src/discovery.rs
     src/error.rs
@@ -249,8 +267,11 @@ voice-bridge/
       src/windows/panel.rs        panel window: show/hide, Dock policy
       src/tray.rs                 menu bar item and menu
       src/menu.rs                 app menu (Edit menu, D23)
-      src/cli.rs                  cv launcher install and status
+      src/cli.rs                  cv launcher install, approval status
+      src/plugin_cli.rs           voice plugin install through the claude CLI
+      src/presence.rs             the session registry, located through the login shell
       src/macos.rs                native window settings (D20)
+  plugin/.claude-plugin/marketplace.json   the bundled marketplace (§22.2)
   plugin/voice/
     .claude-plugin/plugin.json
     .mcp.json
@@ -277,12 +298,14 @@ pub struct HubConfig {
     pub ping_interval: Duration,      // 15 s
     pub hello_timeout: Duration,      // 2 s
     pub max_text_bytes: usize,        // 16 KiB
+    pub restore_grace: Duration,      // 15 s
+    pub pickup_timeout: Duration,     // 10 s
 }
 
 pub struct Hub;
 impl Hub {
-    pub async fn start(config: HubConfig, store: Box<dyn Store>, events: Arc<dyn HubEvents>)
-        -> Result<RunningHub, HubError>;
+    pub async fn start(config: HubConfig, store: Box<dyn Store>, presence: Option<Box<dyn Presence>>,
+        events: Arc<dyn HubEvents>) -> Result<RunningHub, HubError>;
 }
 
 pub struct RunningHub { pub handle: HubHandle, pub port: u16, /* shutdown sender, join handles */ }
@@ -325,8 +348,10 @@ pub struct Message {
 
 pub struct SessionView {
     pub id: SessionId, pub title: String, pub cwd: String, pub live: bool, pub is_target: bool,
-    pub last_activity: Option<OffsetDateTime>, pub unread: u32,
+    pub last_activity: Option<OffsetDateTime>, pub unread: u32, pub activity: Option<Activity>,
 }
+
+pub enum Activity { Busy, Idle }
 
 pub struct HubStatus { pub port: u16, pub live_sessions: u32, pub target: Option<SessionId> }
 ```
@@ -350,6 +375,10 @@ pub trait Store: Send {
     fn purge_before(&mut self, cutoff: OffsetDateTime) -> Result<u64, StoreError>;
 }
 
+pub trait Presence: Send {
+    fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)>;
+}
+
 pub trait HubEvents: Send + Sync {
     fn sessions_changed(&self, sessions: &[SessionView]);
     fn target_changed(&self, target: Option<&SessionId>);
@@ -368,17 +397,18 @@ and `HubHandle` send commands and await answers over oneshot channels. No locks,
 calls never block the async runtime.
 
 State: `links: HashMap<SessionId, Link>` (connection id + outbound frame sender), `target: Option<SessionId>`,
-`pending: HashMap<MessageId, Instant>` (awaiting `delivered`), the store, the events sink.
+`pending: HashMap<MessageId, Instant>` (awaiting `delivered`), `activity` (live sessions', from the presence),
+`pickups` (delivered messages watched for a turn, D64), the store, the presence, the events sink.
 
 | Command | Sent by | Effect |
 |---|---|---|
 | `Register { info, conn, link, answer }` | server | Replace any existing link for `info.id` (the old one gets `error replaced` and is closed); upsert the session; if there is no live target, make this the target; answer with the title for `welcome`; emit `sessions_changed` (and `target_changed`). |
 | `Unregister { id, conn }` | server | Remove the link only if `conn` still owns it; fail its pending messages ("session disconnected"); emit `sessions_changed`. |
-| `Delivered { id }` | server | Mark `delivered`; drop from `pending`; emit `message_updated`. |
+| `Delivered { id }` | server | Mark `delivered`; drop from `pending`; emit `message_updated`; when the session is idle, watch for a turn (D64). |
 | `Reply { id, text }` | server | Insert `from_session` / `received`; touch the session; emit `message_added`, `sessions_changed` (unread). |
 | `Send { text, answer }` | handle | Empty → `SendError::Empty`; too long → `TooLarge`; no target → `NoTarget`; target not live → `TargetOffline`. Else insert `to_session` / `queued`, push `deliver`, add to `pending`, answer with the message, emit `message_added`. |
 | `SetTarget { id, answer }` | handle | Unknown or ended → error; else set, persist, emit `target_changed`, `sessions_changed`. |
-| `Tick` | timer, every second | Fail pending messages older than `delivery_timeout` ("no acknowledgement"); emit `message_updated`. |
+| `Tick` | timer, every second | Fail pending messages older than `delivery_timeout` ("no acknowledgement"); refresh live sessions' activity, emitting `sessions_changed` on a change; flag watched messages whose session stayed idle past `pickup_timeout`. |
 | `Sessions`, `Status`, `History`, `MarkRead`, `Rename`, `Forget` | handle | Reads and edits. `Forget` refuses a live session. |
 | `Shutdown` | `RunningHub` | Close all links normally; stop. |
 
@@ -536,19 +566,13 @@ Type checking with `tsc --noEmit` (strict).
 
 ### 7.6 Launchers
 
-`cv`, written by the app (D18):
+`cv`, written by the app (D18), is the two-branch launcher in §22.2: the installed plugin enabled for its session,
+with `--channels` when the approval file holds our entry and the development flag otherwise.
 
-```sh
-#!/bin/sh
-# voice-bridge launcher
-exec claude --plugin-dir '<resource dir>/plugin/voice' --dangerously-load-development-channels plugin:voice@inline "$@"
-```
-
-- `<resource dir>` comes from Tauri's resource path, so the same code works in `tauri dev` and in the built app.
 - The marker line identifies the app's own file. Installing refuses to overwrite a `cv` without it, and reports when
   `~/.local/bin` is not on `PATH`.
-- `bin/cv-dev` in the repo is the same script pointing at `plugin/voice`, for phase 2 before the app exists.
-- Phase 5 adds an approved route without the dialog (D44–D46, §22.2).
+- `bin/cv-dev` in the repo loads `plugin/voice` with `--plugin-dir` and the development flag
+  (`plugin:voice@inline`), for working on the channel.
 
 ## 8. Persistence
 
@@ -697,8 +721,9 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `update_settings` | `patch` | `Settings` | panel |
 | `overlay_resize` | `height` | `()` | overlay |
 | `open_panel` | `route?` | `()` | overlay |
-| `cli_status` | | `CliStatus { installed, upToDate, path, onPath, foreign }` | panel |
-| `install_cli` | | `CliStatus` | panel |
+| `cli_status` | | `CliStatus { installed, upToDate, path, onPath, foreign, approval, approvalCommand }` | panel |
+| `install_cli` | | `CliStatus` (sets up the plugin, then writes `cv`) | panel |
+| `plugin_status` | | `PluginStatus { installed, upToDate }` | panel |
 | `recent_messages` | `limit` | `Message[]` | panel |
 | `clear_history` | | `()` | panel |
 | `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |
@@ -706,7 +731,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `reveal_data_folder` | | `()` | panel |
 
 Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_target`, `target_offline`,
-`unknown_session`, `session_live`, `invalid_settings`, `cli_conflict`, `internal`.
+`unknown_session`, `session_live`, `invalid_settings`, `cli_conflict`, `plugin_install`, `internal`.
 
 | Event | Payload |
 |---|---|
@@ -730,7 +755,8 @@ commands so unlisted ones are denied.
 - `app.security.csp`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost`.
 - `build.devUrl: http://localhost:1420`, `build.frontendDist: ../dist`, `beforeDevCommand: npm run dev`,
   `beforeBuildCommand: npm run build`.
-- `bundle.resources`: the plugin's `.claude-plugin/`, `.mcp.json` and `dist/` into `plugin/voice/`.
+- `bundle.resources`: the plugin's `.claude-plugin/`, `.mcp.json` and `dist/` into `plugin/voice/`, and the
+  marketplace manifest into `plugin/.claude-plugin/`.
 - `bundle.macOS.minimumSystemVersion: "13.0"`.
 
 ## 10. Frontend
@@ -846,7 +872,7 @@ Picking a session:
 | Part | Behaviour |
 |---|---|
 | Status dot | green: target live · amber: last message still queued · grey: no live target · red: hub not running |
-| Session chip | target title, or "No session"; ▾ opens the picker; a small dot when another session has unread replies |
+| Session chip | target title, or "No session"; "· working" while the target is busy (D49); ▾ opens the picker; a small dot when another session has unread replies |
 | Text box | grows to three lines; paste sends at once (D3); Enter sends; Shift+Enter adds a line; disabled with a hint when there is no live target |
 | Send feedback | a brief tick on `delivered`; on failure the reason shows in the reply island and the text returns to the box if it is empty |
 
@@ -862,11 +888,12 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 | Situation | Text |
 |---|---|
 | Placeholder | Speak or type… |
-| No live target | Start a session with `cv` in a terminal |
+| No live target | Start a session with cv in any terminal, Cursor's included |
 | `no_target` | Pick a session first |
 | `target_offline` | {title} isn't connected |
 | `too_large` | That message is too long to send |
 | Delivery failed | Not delivered: {detail} |
+| Not picked up (D64) | Claude hasn't picked this up (under the echo) |
 | Hub down | Voice Bridge isn't running its hub. Restart the app |
 
 ### 10.8 Control panel
@@ -895,7 +922,7 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 | Sessions | table of live and ended sessions: title, folder, last activity, unread; row actions **Set as target**, **Rename**, **Forget** (ended only); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
 | Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
-| Settings | **General:** show the overlay at launch. **Overlay:** reply preview lines. **Terminal command:** status, Install or Reinstall, the path, a PATH warning. **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
+| Settings | **General:** show the overlay at launch. **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
 
 ### 10.9 Accessibility
 
@@ -911,7 +938,8 @@ contrast meets WCAG AA in both themes.
 - No permission relay: nothing in the app can approve Claude's tool calls.
 - The `cv` installer never overwrites a file it did not write.
 - Channel approval is a managed-settings file the user writes with `sudo` (D45); the app reads it and never asks for
-  admin rights.
+  admin rights. `cv` and Settings accept only our exact entry (D46), and since a refused channel still connects, a
+  delivered message that starts no turn is flagged (D64).
 
 ## 12. Principles
 
@@ -935,8 +963,8 @@ contrast meets WCAG AA in both themes.
 | Server | Rust tests: server on a random port, `tokio-tungstenite` client | hello happy path, bad token, bad protocol, no hello, web origin refused, oversize frame, ping timeout, replaced connection |
 | Channel | `node:test` with a fake hub (`ws` dev dependency) and a fake MCP client | env errors, discovery changes, reconnect and backoff, notify-then-ack order, `reply` while disconnected |
 | End to end | `node:test` driving `hub-dev` and two real `dist/channel.js` processes | each message reaches only its session; replies tagged; a closed session drops; hub restart → reconnect within 10 s; delivery timeout → failed |
-| Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv`; launcher script with and without approval; plugin install steps through a fake `PluginCli` |
-| Presence | Rust tests on a temp sessions folder | valid entry, unknown `status`, extra fields, malformed file, dead pid, `.key` files never opened |
+| Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv`; the generated `cv` run against a stub `claude` with a matching, a wrong and no approval file; approval states; plugin install steps through a fake `PluginCli` |
+| Presence | Rust tests on a temp sessions folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file |
 | UI | component tests later, once the islands settle | |
 
 The prototype and spikes were removed after phase 3; they remain in git history (commit `472969f`, `reference/`).
@@ -1006,23 +1034,20 @@ at startup.
 
 ### Phase 5 — native integration
 
-Tasks (§22), in order: run S4 and record D44's outcome; approval for the chosen variant (§22.2): approval status, the
-launcher and, for the marketplace variants, the manifest, bundle resource and installer steps, then the `CliStatus`
-fields and Settings rows; the copy in §22.3; run S5, then activity (§22.4) without its optional part; optionally D50
-and S6.
+Tasks (§22): S5, then activity (§22.4) and the unheard hint (D64); S4 and D44's outcome; approval for `per-session`
+(§22.2): the launcher, approval status, the marketplace manifest and bundle resource, the installer, `plugin_status`
+and the Settings rows; the copy in §22.3.
 
 Checks:
 - `cv` in a new terminal starts with no dialog; a dictation reaches the session and the reply shows. The same in
   Cursor's integrated terminal.
 - With the approval file moved away, `cv` shows the dialog and voice still works; Settings shows Not approved with the
   command.
-- Marketplace variants: Install sets up the marketplace and the plugin, and a second Install changes nothing; a bumped
-  plugin version shows Reinstall, which updates it; a plain `claude` session starts no `channel.js` (`per-session`)
-  or never registers (`everywhere`).
-- During a long turn the chip reads "working" and a message sent then reads "Waits until Claude finishes"; both clear
-  when the turn ends.
-- The §13 rows for Settings, CLI and Presence are green; `everywhere` adds a channel test for the missing marker.
-  Lint clean.
+- Install sets up the marketplace and the plugin, and a second Install changes nothing; a rebuilt plugin shows an
+  update due, which Reinstall clears; a plain `claude` session starts no `channel.js`.
+- During a long turn the chip reads "working"; it clears when the turn ends.
+- A session whose channel is refused shows "Claude hasn't picked this up" on its message within about 10 s.
+- The §13 rows for Settings, CLI and Presence are green. Lint clean.
 
 ### Phase 6 — Apollo: channels, releases and self-update (§23)
 
@@ -1055,9 +1080,9 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - Channels are a research preview: the flag and protocol may change.
 - On Team and Enterprise plans an admin must enable channels; the development flag cannot override
   `channelsEnabled: false`.
-- A channel cannot tell whether the flag enabled it; the startup handshake is identical without it. D8 keeps the
-  plugin out of other sessions; if the plugin is ever installed globally, `cv` must set a marker the channel checks
-  before registering.
+- A channel cannot tell whether Claude Code enabled it; the startup handshake is identical either way. The plugin is
+  installed but disabled user-wide, so only `cv` loads it (D44), and a refused channel is caught by the unheard hint
+  (D64).
 
 ## 17. Invariants learned from the prototype
 
@@ -1078,9 +1103,6 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 - **Q3** After a send, should focus return to the app you were in? (Phase 7.)
 - **Q14** Final logo: an "island wave" (a pill holding three rising bars) or a "prompt wave" (`›` followed by a sound
   wave)? Phase 7; phases 1–6 use the D27 placeholder.
-- **Q16** Can IDE panel sessions take channels through Cursor's `claudeCode.claudeProcessWrapper`? (S6, optional;
-  expected no.)
-- **Q17** Show sessions without a channel as "Not voice-ready" (D50)? Decide once activity has shipped.
 - **Q18** Which URL and header does GitLab 16.11 accept for a private project's raw file and generic package with a
   deploy token? (S7.)
 - **Q19** A message that arrives mid-turn reaches Claude as a queued command at the next tool boundary, and in S5 Claude
@@ -1098,9 +1120,8 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S1 plugin channel, two sessions | passed | `plugin:voice@inline` works; each message reached only its session; replies tagged; ~8 s round trip; no way for a channel to see whether it is enabled |
 | S2 Tauri overlay with Wispr Flow | passed for dictation | two sends, replies in 3–4 s; staying on top after clicking another app, and full-screen apps, not yet observed |
 | S3 full screen and window type | passed | non-activating panel chosen (D35) |
-| S4 channel approval | not run | |
+| S4 channel approval | passed: `per-session` | the drop-in file was read and `channelsEnabled` wasn't needed; `--settings` enabled the installed, user-disabled plugin and `--channels` loaded it with no dialog (debug log: `Channel notifications registered`); a dictation round-tripped; a plain `claude` started no `channel.js`. Without the file: "plugin voice@voice-bridge is not on the approved channels allowlist (use --dangerously-load-development-channels for local dev)", and the channel still registered with the hub (D64) |
 | S5 session registry activity | passed | the channel's parent pid names `~/.claude/sessions/<pid>.json`; around a foreground `sleep 15`, `status` read `idle → busy → idle` with `statusUpdatedAt` (Unix ms) moving each time. Two more values: `shell` (the turn ended, a background command still runs) and `waiting` (a permission prompt). A second message sent mid-turn queued and joined the same turn at its next tool boundary, with no `idle` between (Q19). The file goes when the session ends |
-| S6 IDE panel channel (optional) | not run | |
 | S7 GitLab feed and package access | not run | Q18: fetch a raw file and a generic package file from the GitLab project with a deploy token |
 | S8 in-place update | not run | the updater swaps an ad-hoc-signed `/Applications/Apollo.app` and relaunches; Gatekeeper stays quiet |
 
@@ -1117,33 +1138,21 @@ Pick 2 if it passes everything, otherwise 1. Record the choice as a decision.
 **S4** (~20 min, manual; the app running; a scratch folder). A step passes when no dialog appears, no refusal line
 prints, the session shows live in the overlay, and a dictation reaches it and the reply shows.
 
-1. Approval for `inline`: `sudo mkdir -p "/Library/Application Support/ClaudeCode/managed-settings.d"`, then
-   `echo '{"allowedChannelPlugins":[{"marketplace":"inline","plugin":"voice"}]}' | sudo tee
+1. Approval: `sudo mkdir -p "/Library/Application Support/ClaudeCode/managed-settings.d"`, then
+   `echo '{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"voice"}]}' | sudo tee
    "/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json"`.
-2. `inline`: `claude --plugin-dir ~/Desktop/voice-bridge/plugin/voice --channels plugin:voice@inline`.
-3. Refused over `channelsEnabled`: add `"channelsEnabled": true` to the file and repeat step 2 once.
-4. Refused otherwise: `per-session`. Add the §22.2 marketplace manifest; `claude plugin marketplace add
-   ~/Desktop/voice-bridge/plugin`; `claude plugin install voice@voice-bridge`; `claude plugin disable
-   voice@voice-bridge`; set the file's marketplace to `voice-bridge`; run `claude --settings
-   '{"enabledPlugins":{"voice@voice-bridge":true}}' --channels plugin:voice@voice-bridge`. It also needs a plain
-   `claude` in another folder to start no `channel.js` (`pgrep -fl channel.js`).
-5. The plugin doesn't load in step 4: `everywhere`. `claude plugin enable voice@voice-bridge`; `claude --channels
-   plugin:voice@voice-bridge`. This checks the approval only; the marker isn't built yet.
-6. Every variant refused exactly as with no file: the drop-in folder may not be read. Put the entry into
-   `managed-settings.json` (create it only if absent) and repeat the step that should have passed.
-7. Undo what didn't win: the file; for the marketplace variants `claude plugin uninstall voice@voice-bridge` and
-   `claude plugin marketplace remove voice-bridge`.
+2. `claude plugin marketplace add ~/Desktop/voice-bridge/plugin`; `claude plugin install voice@voice-bridge`;
+   `claude plugin disable voice@voice-bridge`.
+3. `claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --channels plugin:voice@voice-bridge`; a plain
+   `claude` in another folder must start no `channel.js` (`pgrep -fl channel.js`). Refused over `channelsEnabled`:
+   add it and retry once. Refused as with no file: put the entry into `managed-settings.json` and retry.
+4. Only if the plugin doesn't load under `--settings`: `inline`, with an `inline` entry and
+   `claude --plugin-dir … --channels plugin:voice@inline`.
+5. Neither passes: the dialog stays (D44); undo the file and the marketplace.
 
-Record the variant (D44), the exact refusal lines seen, and whether `channelsEnabled` or `managed-settings.json` was
-needed.
-
-**S5** (~5 min; Claude can run it). With a `cv` session live, find its registry entry by the hub's session id; dictate
+**S5** (~5 min; Claude can run it). With a `cv` session live, find its registry entry by its Claude pid; dictate
 "run sleep 15, then reply done"; sample `status` every 500 ms. Pass: `idle → busy → idle`, with `busy` covering the
 sleep. Fail: the hooks fallback in §22.4.
-
-**S6** (optional, ~10 min, expected to fail). Point Cursor's `claudeCode.claudeProcessWrapper` at a script that runs
-the command it is given with the S4 winner's flags appended (how the extension passes the command is unverified);
-open a panel session. Pass: a dictation reaches it and the reply shows in the overlay. Remove the setting afterwards.
 
 ## 20. Name and logo
 
@@ -1202,7 +1211,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 2 Hub and channel | done | 2026-10-25 | 44 Rust + 15 channel + 4 end-to-end tests green; manual two-session check and Q11 passed |
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
-| 5 Native integration | not started | | |
+| 5 Native integration | built; manual checks pending | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green |
 | 6a Rename and channels | not started | | |
 | 6b Changelog and release tooling | not started | | |
 | 6c Self-update and first releases | not started | | |
@@ -1210,7 +1219,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 ## 22. Native integration
 
 Phase 5 makes voice sessions feel native: no dialog when a session starts (R13), voice from any terminal (R14), and
-Claude's activity in the overlay (R15). Spikes S4–S6 settle what the findings leave open.
+Claude's activity in the overlay (R15). Spikes S4 and S5 settled what the findings left open.
 
 ### 22.1 Findings
 
@@ -1223,15 +1232,19 @@ From Claude Code 2.1.310's docs and binary.
 - **Managed settings** come from `/Library/Application Support/ClaudeCode/managed-settings.json`, the drop-in folder
   `managed-settings.d/` beside it, the managed preferences plist, and server-managed settings. The highest source that
   sets `allowedChannelPlugins` owns it whole, so an organization's list replaces a local one.
-- **Refusals** print "is not on your org's approved channels list" and, when the plugin's source doesn't match the
-  requested marketplace, "from an unknown source". The second is the risk for `inline`.
+- **Refusals** print "is not on the approved channels allowlist" (no managed list), "is not on your org's approved
+  channels list" and, when the plugin's source doesn't match the requested marketplace, "from an unknown source". The
+  last is the risk for `inline`. A refused channel's MCP server still starts.
 - **IDE panels** run Claude Code as an SDK host (`--input-format stream-json --output-format stream-json
   --permission-prompt-tool=stdio`). The docs cover channels in the terminal CLI only and say the flag is ignored under
   the Agent SDK. `cv` in Cursor's integrated terminal is a CLI session.
 - **Session registry.** Every session, panels included, writes `~/.claude/sessions/<pid>.json` for cross-session
-  messaging: `sessionId`, `cwd`, `name`, `entrypoint` (`cli`, `claude-vscode`), `status` (`busy`, `idle`),
-  `statusUpdatedAt`, `messagingSocketPath`, with a `.key` file beside it. Cross-session messaging is documented; this
-  file format is not.
+  messaging: `sessionId`, `cwd`, `name`, `entrypoint` (`cli`, `claude-vscode`), `status` (`busy`, `idle`, `shell`,
+  `waiting`), `statusUpdatedAt` (Unix ms), `messagingSocketPath`, with a `.key` file beside it. The file goes when the
+  session ends. Cross-session messaging is documented; this file format is not.
+- **Directory marketplaces are read in place.** A plugin installed from a `directory` marketplace runs from that folder
+  (`readFromFolder` in `claude plugin list --json`), with a cached copy beside it. Removing a marketplace uninstalls
+  its plugins.
 - **Cross-session messages** reach panel sessions and are read between tool calls, but the receiver treats them as
   information, not user consent. Claude answers with `SendMessage` to a peer session, and the socket framing is
   documented only as far as the auth line.
@@ -1240,24 +1253,22 @@ From Claude Code 2.1.310's docs and binary.
 
 ### 22.2 Approval (R13)
 
-S4 picks the first variant that passes (D44).
+S4 picked `per-session` (D44): the plugin comes from a local marketplace the app bundles, installed and disabled
+user-wide, and `cv` enables it for its own session with `--settings`, so `--channels` needs only the approval.
+`inline` (`--plugin-dir` with `plugin:voice@inline` and an `inline` entry) stays the fallback if per-session enabling
+ever breaks; it rests on Claude Code's internal marketplace name.
 
-| Variant | Approval entry | Plugin flags in `cv` | Channel | Plugin | Cost |
-|---|---|---|---|---|---|
-| `inline` | `{"marketplace": "inline", "plugin": "voice"}` | `--plugin-dir '<resource dir>/plugin/voice'` | `plugin:voice@inline` | per session, as today (D8) | one flag in `cv`; rests on the `inline` name and may meet "unknown source" |
-| `per-session` | `{"marketplace": "voice-bridge", "plugin": "voice"}` | `--settings '{"enabledPlugins":{"voice@voice-bridge":true}}'` | `plugin:voice@voice-bridge` | installed from a local marketplace, disabled user-wide | marketplace manifest; install and update in the installer; a user's own `cv --settings …` drops the plugin |
-| `everywhere` | as `per-session` | none; `export VOICE_BRIDGE_CV=1` first | `plugin:voice@voice-bridge` | installed and enabled, idle without the marker | as `per-session`, plus an idle Node process in every session, panels included |
-
-**Approval file (D45):** `/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json`.
+**Approval file (D45):** `/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json`, compact:
 
 ```json
-{ "allowedChannelPlugins": [{ "marketplace": "<the variant's>", "plugin": "voice" }] }
+{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"voice"}]}
 ```
 
-- The user writes it once with a `sudo` command the panel shows with Copy; the app only reads it.
-- `channelsEnabled: true` joins it only if S4 shows the allowlist is ignored without it.
-- If S4 shows the drop-in folder isn't read, the entry goes into `managed-settings.json`; the panel then shows the keys
-  to merge and never rewrites that file.
+- The user writes it once with the `sudo` command Settings shows with Copy (`CliStatus.approvalCommand`, built in
+  `cli.rs`); the app only reads it.
+- The drop-in folder is read, and `channelsEnabled` isn't needed on a personal login (S4).
+- Settings reads `ApprovalState`: `approved`, `missing`, `wrong_entry` (no entry, or not as the command writes it, which
+  the launcher's `grep` would miss), `unreadable`, `conflict` (`managed-settings.json` sets its own list without ours).
 - It replaces Anthropic's default allowlist, so an official channel plugin (Telegram, Discord, iMessage) would need
   its own entry.
 - Personal login only. On a Team or Enterprise login the admin owns `channelsEnabled` and the allowlist (Q1).
@@ -1267,75 +1278,72 @@ S4 picks the first variant that passes (D44).
 ```sh
 #!/bin/sh
 # voice-bridge launcher
-if [ -f '/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json' ]; then
-    exec claude <plugin flags> --channels <channel> "$@"
+if grep -qF '{"marketplace":"voice-bridge","plugin":"voice"}' '/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json' 2>/dev/null; then
+    exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --channels plugin:voice@voice-bridge "$@"
 fi
-exec claude <plugin flags> --dangerously-load-development-channels <channel> "$@"
+exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --dangerously-load-development-channels plugin:voice@voice-bridge "$@"
 ```
 
-- Never worse than today: without the file the dialog comes back and voice still works.
-- Both lines load the same plugin, so a session never runs two voice channels.
-- The marker stays on line 2; `upToDate` keeps comparing the whole script.
-- `bin/cv-dev` keeps the development flag: it runs the working copy, where the dialog is acceptable.
+- Never worse than before: without our entry the dialog comes back and voice still works.
+- Both branches load the same plugin, so a session never runs two voice channels.
+- The marker stays on line 2; `upToDate` compares the whole script.
+- A user's own `cv --settings …` replaces ours and drops the plugin.
+- `bin/cv-dev` keeps `--plugin-dir` and the development flag: it runs the working copy, and the installed plugin is
+  disabled, so nothing loads twice.
 
-**Installer (marketplace variants only):**
+**Marketplace and installer (D66):**
 
 - `plugin/.claude-plugin/marketplace.json`: `{"name": "voice-bridge", "owner": {"name": "Voice Bridge"}, "plugins":
-  [{"name": "voice", "source": "./voice"}]}`, added to `bundle.resources`, so the marketplace root is
-  `<resource dir>/plugin`. `claude plugin validate` checks it.
-- `install_cli` runs, through the login-shell `claude` (D42): `claude plugin marketplace add <root>` (or
-  `marketplace update voice-bridge`), `claude plugin install voice@voice-bridge` (or `update`), and for `per-session`
-  `claude plugin disable voice@voice-bridge`. A failing step returns UI code `plugin_install` with the CLI's stderr.
-- The installed version comes from `claude plugin list --json` and is compared with the bundled `plugin.json`. The
-  installed copy is a cached snapshot, so every plugin change bumps `version`.
-- The CLI calls sit behind a `PluginCli` trait, so tests use a fake.
+  [{"name": "voice", "source": "./voice"}]}`, in `bundle.resources`, so the marketplace root is `<resource dir>/plugin`
+  (`target/debug/plugin` under `tauri dev`). `claude plugin validate plugin` checks it.
+- Install runs, through the login-shell `claude` (D42), only what is needed: `plugin marketplace remove` and `add` when
+  the marketplace path isn't this app's; `plugin install voice@voice-bridge --scope user` when missing, after an
+  `uninstall` when the installed `dist/channel.js` or `.mcp.json` differ from the bundle's; `plugin disable` when
+  enabled. Then it writes `cv`. A failing step returns UI code `plugin_install` with the CLI's output.
+- The plugin runs from the marketplace folder (§22.1), so an app update reaches the next session; the content check
+  keeps the cached copy current in case that changes.
+- `plugin.json`, `package.json` and the MCP server agree on one version (a channel test).
+- The CLI calls sit behind a `PluginCli` port, so tests use a fake.
 
-**Status:** `CliStatus` gains `channelApproved` (every variant) and, for the marketplace variants, `pluginInstalled`
-and `pluginUpToDate`. `Launcher` takes `approval_path`, so tests inject a temp file. Settings → Terminal command shows
-three rows: the launcher (as today), the plugin (marketplace variants), and channel approval (Approved, or Not approved
-with the command and Copy).
-
-**`everywhere` only:** `readEnv` returns `{ error }` without `VOICE_BRIDGE_CV`, so `main.ts` takes its existing idle
-path: connected over stdio, never registered with the hub.
+**Status:** `CliStatus` gains `approval` and `approvalCommand`; `plugin_status` (Settings only) returns
+`PluginStatus { installed, upToDate }`. Settings → Terminal command shows three rows: the launcher, the voice plugin,
+and channel approval.
 
 ### 22.3 Any terminal (R14)
 
 - `cv` is the voice session in every terminal, Cursor's integrated terminal included; that session still links to
   Cursor through Claude Code's IDE integration.
-- Copy: the overlay's no-live-target hint and Home's "Start a voice session" card read "Start a session with `cv` in
-  any terminal, Cursor's included".
+- Copy: the overlay's no-live-target hint, the picker's and Sessions' empty states and Home's "Start a voice session"
+  card read "Start a session with cv in any terminal, Cursor's included".
 - `alias claude=cv` is the user's choice, not app code. Once approval removes the dialog it makes every terminal
   session voice-ready at no cost; each one registers, and the automatic target (§5.5) is the first when none is live.
-- IDE panel sessions stay out of reach (§16). S6 is optional, and nothing depends on it.
+- IDE panel sessions stay out of reach (§16).
 
 ### 22.4 Activity (R15)
 
 ```rust
 pub enum Activity { Busy, Idle }
 
-pub struct RegistryEntry {
-    pub session: SessionId, pub pid: u32, pub activity: Option<Activity>, pub entrypoint: String, pub cwd: String,
-}
-
 pub trait Presence: Send {
-    fn scan(&mut self) -> Vec<RegistryEntry>;
+    fn activity(&mut self, pid: u32) -> Option<(Activity, OffsetDateTime)>;
 }
 ```
 
-- `ClaudeSessions` reads `$CLAUDE_CONFIG_DIR/sessions/*.json`, else `~/.claude/sessions/*.json`. It never opens
-  `.key` files, skips malformed files and entries whose pid is gone (`libc::kill(pid, 0)`), and maps an unknown
-  `status` to `None`. Nothing in it is an error.
-- `Hub::start` takes `Option<Box<dyn Presence>>`: the shell passes `ClaudeSessions`, tests a fake or `None`.
-- The actor scans on its existing `Tick` and keeps `activity: HashMap<SessionId, Activity>`; it emits
-  `sessions_changed` only when a live voice session's activity changes.
-- `SessionView` gains `activity: Option<Activity>` (ts-rs → `shared/types/Activity.ts`).
-- Overlay: the session chip adds "· working" while the target is busy, and meanwhile the newest echo card reads
-  "Waits until Claude finishes". Amber keeps meaning queued in the hub. Panel → Sessions gains an Activity column.
-- **Optional (D50):** registry sessions without a channel appear in the picker and on Sessions as "Not voice-ready"
-  (an IDE panel: "IDE panel: start it with `cv` in a terminal"). They are never stored and never targetable
-  (`HubError::NotVoiceReady`, UI code `not_voice_ready`).
-- Fallback if S5 fails or the format drifts: hooks in the voice plugin (`UserPromptSubmit`, `Stop`) reporting through
-  a new `activity` frame (protocol v2). Built only if needed.
+- `ClaudeSessions` reads `<dir>/<pid>.json` for each live session's Claude pid (the channel's parent, sent in
+  `hello`): `status` and `statusUpdatedAt`, other fields ignored. It never lists the folder, so `.key` files are never
+  touched. `busy` and `waiting` (a permission prompt) are busy; `idle` and `shell` (a background command after the
+  turn) are idle. An unknown status or a malformed or missing file reads as unknown and is logged once per kind of
+  problem, so format drift shows in the log.
+- The folder is `$CLAUDE_CONFIG_DIR/sessions`, else `~/.claude/sessions`, with `CLAUDE_CONFIG_DIR` from the login shell
+  (D65); `hub-dev` uses its own environment, and server tests pass `None`.
+- The actor refreshes live sessions on its `Tick`, skips when none is live, and emits `sessions_changed` only when an
+  activity changes. `SessionView.activity` is set for live sessions (ts-rs → `shared/types/Activity.ts`).
+- Overlay: the session chip adds "· working" while the target is busy; amber keeps meaning queued in the hub. A 1 s
+  poll misses the busy → idle → busy flip when Claude picks up a queued message, so the echo cards don't show it.
+- **Unheard hint (D64):** on `delivered` to an idle session the actor notes its `statusUpdatedAt`; if that is
+  unchanged after `pickup_timeout`, the message keeps `delivered` with the detail "Claude hasn't picked this up".
+- Fallback if the format drifts: hooks in the voice plugin (`UserPromptSubmit`, `Stop`) reporting through a new
+  `activity` frame (protocol v2). Built only if needed.
 
 ### 22.5 Not pursued
 
@@ -1345,6 +1353,11 @@ pub trait Presence: Send {
 - An admin prompt in the app that writes the approval file: a privilege-escalation path in app code for a one-time
   step.
 - An official marketplace listing: needs an Anthropic partner contact.
+- `everywhere`, the plugin enabled in every session and idle without a `cv` marker: its idle path still serves the
+  `reply` tool and the "plain text never reaches the user" instructions to every session, panels included; the marker
+  leaks into nested `claude` processes; and `cv-dev` would load a second copy for the same session.
+- Sessions without a channel shown as "Not voice-ready" (was D50, Q17), the IDE panel probe through Cursor's
+  `claudeCode.claudeProcessWrapper` (was S6, Q16), and an Activity column on Sessions.
 
 ## 23. Release and update
 
