@@ -142,6 +142,8 @@ release() {
     gh release create "$tag" --repo "$REPO" --verify-tag --draft --title "$tag" --notes-file "$work/notes.md" \
         "$app" "$app.sig" "$dmg" "$work/latest.json"
     gh release edit "$tag" --repo "$REPO" --draft=false --latest
+    trap - EXIT
+    rm -rf "$work"
     echo "released $tag: https://github.com/$REPO/releases/tag/$tag"
 }
 
