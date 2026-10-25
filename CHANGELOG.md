@@ -2,6 +2,11 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.1.1 - 2026-10-25
+
+### Fixes
+
+- ui: empty states name the launcher this app installs, cv-dev in apollo dev
 ## 0.1.0 - 2026-10-25
 
 ### Features
