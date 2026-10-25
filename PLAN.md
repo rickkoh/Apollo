@@ -252,6 +252,10 @@ Record every new decision and question here.
   unchanged saves nothing, so opening it never pins Claude's title.
 - **D91 Claude's title is stored with the session** (`claude_title`, schema v2), so an ended session keeps its name in
   the picker and on Sessions; the actor writes it only when it changes.
+- **D92 A new session takes the target as it connects, behind a setting** (`sessions.targetNew`, on by default). New
+  means the hub has never seen its id, so a reconnect, a relaunch or a resumed conversation never takes the target
+  from a live one; with the setting off, §5.5's earlier rule holds. Settings sends the value to the hub through
+  `set_target_new_sessions`, and `HubConfig` carries it at start.
 
 ## 3. Architecture
 
@@ -380,6 +384,7 @@ pub struct HubConfig {
     pub max_text_bytes: usize,        // 16 KiB
     pub restore_grace: Duration,      // 15 s
     pub pickup_timeout: Duration,     // 10 s
+    pub target_new_sessions: bool,    // true (D92)
 }
 
 pub struct Hub;
@@ -397,6 +402,7 @@ impl HubHandle {
     pub async fn status(&self) -> HubStatus;
     pub async fn sessions(&self) -> Vec<SessionView>;
     pub async fn set_target(&self, id: SessionId) -> Result<(), HubError>;
+    pub async fn set_target_new_sessions(&self, on: bool) -> Result<(), HubError>;
     pub async fn send(&self, text: String) -> Result<Message, SendError>;
     pub async fn history(&self, id: SessionId, before: Option<MessageId>, limit: u32) -> Result<Vec<Message>, HubError>;
     pub async fn mark_read(&self, id: SessionId, upto: MessageId) -> Result<(), HubError>;
@@ -491,6 +497,7 @@ presence),
 | `Reply { id, text }` | server | Insert `from_session` / `received`; touch the session; emit `message_added`, `sessions_changed` (unread). |
 | `Send { text, answer }` | handle | Empty → `SendError::Empty`; too long → `TooLarge`; no target → `NoTarget`; target not live → `TargetOffline`. Else insert `to_session` / `queued`, push `deliver`, add to `pending`, answer with the message, emit `message_added`. |
 | `SetTarget { id, answer }` | handle | Unknown or ended → error; else set, persist, emit `target_changed`, `sessions_changed`. |
+| `TargetNewSessions { on, answer }` | handle | Set whether a new session takes the target (D92). |
 | `Tick` | timer, every second | Fail pending messages older than `delivery_timeout` ("no acknowledgement"); refresh live sessions' activity and titles, storing a changed title (D91) and emitting `sessions_changed` on a change; flag watched messages whose session stayed idle past `pickup_timeout`. |
 | `Sessions`, `Status`, `History`, `MarkRead`, `Rename`, `Forget` | handle | Reads and edits. `Forget` refuses a live session. |
 | `Shutdown` | `RunningHub` | Close all links normally; stop. |
@@ -498,8 +505,9 @@ presence),
 Rules:
 
 - **Target restore.** At start the target is read from the store. It is not live until that session registers.
-- **Automatic target.** A registering session becomes the target only when there is no live target. The target is
-  never switched away from a live session automatically.
+- **Automatic target.** A session the hub has never seen becomes the target as it registers while
+  `target_new_sessions` is on (D92). Any other registering session becomes the target only when there is no live
+  target, and is never given it from a live session.
 - **Titles.** The user's rename, else Claude Code's title (D90), else the folder name of `cwd`; when two live sessions
   share a title, the first four characters of the session id are appended.
 - **Unread.** Count of `from_session` messages after the session's `last_read`. The overlay marks the target's replies
@@ -713,6 +721,7 @@ CREATE TABLE meta (
 {
   "version": 1,
   "overlay": { "visibleAtLaunch": true, "replyPreviewLines": 3 },
+  "sessions": { "targetNew": true },
   "history": { "retentionDays": 30 },
   "shortcuts": { "focusInput": null, "toggleOverlay": null }
 }
@@ -720,7 +729,7 @@ CREATE TABLE meta (
 
 - The `Settings` service loads with defaults for missing keys, validates (`replyPreviewLines` 1–8, `retentionDays`
   1–365), writes atomically, and emits `settings-changed`.
-- `update_settings` takes a partial patch; unknown keys are rejected.
+- `update_settings` takes a partial patch; unknown keys are rejected. It passes `sessions.targetNew` to the hub.
 - `shortcuts` is stored now and read by the Shortcuts skeleton; nothing registers global shortcuts yet.
 
 ## 9. Desktop shell
@@ -1014,7 +1023,7 @@ A 36 px strip across the top of the window drags it, as in Wispr Flow; pages scr
 | Sessions | table of live and ended sessions: title, folder, last activity, unread; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
 | Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
-| Settings | **General:** show the overlay at launch. **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
+| Settings | **General:** show the overlay at launch; target new sessions (D92). **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
 
 ### 10.9 Accessibility
 
@@ -1154,7 +1163,7 @@ Checks:
 - With the setting removed, new panel tabs start as before.
 - The bridge and instruction tests are green; Settings shows each editor's state. Lint clean.
 
-### Phase 5c — Session titles (§22.5)
+### Phase 5c — Session titles (§22.5) and new sessions as the target (D92)
 
 Checks:
 - A new `cv-dev` session shows its folder name, and Claude's title after a typed prompt; after `/clear` and another
@@ -1162,6 +1171,8 @@ Checks:
   by dictation keeps its folder name.
 - A rename on Sessions overrides it and an empty rename returns to it; Rename left unchanged keeps following Claude.
 - An ended session keeps its title; an existing `voice.db` migrates to v2 with its sessions intact.
+- With **Target new sessions** on, a session opened while another is the target takes it at once; one that reconnects
+  doesn't. Turned off in Settings, the target stays put without a restart.
 - The §13 rows for Hub actor, Store and Presence are green. Lint clean.
 
 ### Phase 6 — Apollo: channels, releases and self-update (§23)
@@ -1466,7 +1477,8 @@ and channel approval.
 - Copy: the overlay's no-live-target hint, the picker's and Sessions' empty states and Home's "Start a voice session"
   card read "Start a session with cv in any terminal, Cursor's included".
 - `alias claude=cv` is the user's choice, not app code. Once approval removes the dialog it makes every terminal
-  session voice-ready at no cost; each one registers, and the automatic target (§5.5) is the first when none is live.
+  session voice-ready at no cost; each one registers, and with **Target new sessions** on (D92) each new one takes the
+  target, a quick side session included.
 - IDE panel sessions get voice through the panel bridge (§24).
 
 ### 22.4 Activity (R15)
