@@ -2,6 +2,13 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.2.0 - 2026-10-25
+
+### Features
+
+- hub: show claude code's session titles
+- hub: new sessions take the target, behind a setting
+- app: the logo is a lyre, apollo's instrument
 ## 0.1.1 - 2026-10-25
 
 ### Fixes
