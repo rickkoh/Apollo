@@ -77,3 +77,13 @@ test('the send result arriving after its delivered event does not regress the st
     assert.equal(s.cards[0]!.message?.status, 'delivered')
     assert.ok(!s.pending)
 })
+
+test('a note on a delivered message stays on its echo, which keeps waiting', () => {
+    const s = new MessageStack()
+    const m = message('to_session', 'one')
+    s.sent(m)
+    assert.equal(s.updated(m.id, 'delivered', "Claude hasn't picked this up"), null)
+    s.tick(FADE_MS * 2, false)
+    assert.deepEqual(texts(s), ['sent:one'])
+    assert.equal(s.cards[0]!.message?.detail, "Claude hasn't picked this up")
+})

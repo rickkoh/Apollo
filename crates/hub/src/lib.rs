@@ -37,6 +37,8 @@ pub struct HubConfig {
     pub max_text_bytes: usize,
     /// How long a target restored at start keeps priority while it reconnects; above the channel's 10 s retry.
     pub restore_grace: Duration,
+    /// How long a message delivered to an idle session may go without starting a turn before it is flagged.
+    pub pickup_timeout: Duration,
 }
 
 impl HubConfig {
@@ -48,6 +50,7 @@ impl HubConfig {
             hello_timeout: Duration::from_secs(2),
             max_text_bytes: 16 * 1024,
             restore_grace: Duration::from_secs(15),
+            pickup_timeout: Duration::from_secs(10),
         }
     }
 }

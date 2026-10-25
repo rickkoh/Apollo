@@ -24,10 +24,19 @@ pub(crate) enum Outbound {
 
 pub(crate) type LinkSender = mpsc::UnboundedSender<Outbound>;
 
+const NOT_PICKED_UP: &str = "Claude hasn't picked this up";
+
 struct Link {
     conn: u64,
     tx: LinkSender,
     claude_pid: u32,
+}
+
+/// A message delivered to an idle session, heard once that session's activity changes.
+struct Pickup {
+    session: SessionId,
+    idle_since: OffsetDateTime,
+    deadline: Instant,
 }
 
 pub(crate) enum Command {
@@ -107,6 +116,7 @@ pub(crate) struct HubActor {
     activity: HashMap<SessionId, (Activity, OffsetDateTime)>,
     target: Option<SessionId>,
     pending: HashMap<MessageId, (SessionId, Instant)>,
+    pickups: HashMap<MessageId, Pickup>,
     /// Set while a target restored at start may still reconnect before another session takes over.
     restoring_until: Option<Instant>,
 }
@@ -137,6 +147,7 @@ impl HubActor {
             activity: HashMap::new(),
             target,
             pending: HashMap::new(),
+            pickups: HashMap::new(),
             restoring_until,
         })
     }
@@ -209,6 +220,7 @@ impl HubActor {
             Command::ClearHistory { answer } => {
                 let result = self.store.clear_history().map_err(HubError::from);
                 self.pending.clear();
+                self.pickups.clear();
                 self.emit_sessions();
                 let _ = answer.send(result);
             }
@@ -357,9 +369,46 @@ impl HubActor {
             return;
         }
         self.pending.remove(&id);
-        match self.store.set_status(id, DeliveryStatus::Delivered, None) {
-            Ok(()) => self.events.message_updated(id, DeliveryStatus::Delivered, None),
-            Err(err) => tracing::error!("marking delivered failed: {err}"),
+        if let Err(err) = self.store.set_status(id, DeliveryStatus::Delivered, None) {
+            tracing::error!("marking delivered failed: {err}");
+            return;
+        }
+        self.events.message_updated(id, DeliveryStatus::Delivered, None);
+        if let Some((Activity::Idle, since)) = self.activity.get(session) {
+            let pickup = Pickup {
+                session: session.clone(),
+                idle_since: *since,
+                deadline: Instant::now() + self.config.pickup_timeout,
+            };
+            self.pickups.insert(id, pickup);
+        }
+    }
+
+    /// Flags messages whose idle session never started a turn; a channel Claude Code refused still acknowledges.
+    fn check_pickups(&mut self) {
+        let now = Instant::now();
+        let mut unheard = Vec::new();
+        self.pickups.retain(|id, pickup| {
+            let still_idle = self
+                .activity
+                .get(&pickup.session)
+                .is_some_and(|(_, since)| *since == pickup.idle_since);
+            if still_idle && now >= pickup.deadline {
+                unheard.push(*id);
+                return false;
+            }
+            still_idle
+        });
+        for id in unheard {
+            match self
+                .store
+                .set_status(id, DeliveryStatus::Delivered, Some(NOT_PICKED_UP))
+            {
+                Ok(()) => self
+                    .events
+                    .message_updated(id, DeliveryStatus::Delivered, Some(NOT_PICKED_UP)),
+                Err(err) => tracing::error!("flagging an unheard message failed: {err}"),
+            }
         }
     }
 
@@ -492,6 +541,7 @@ impl HubActor {
     fn tick(&mut self) {
         self.end_restore_grace();
         self.refresh_activity();
+        self.check_pickups();
         let timeout = self.config.delivery_timeout;
         let expired: Vec<MessageId> = self
             .pending

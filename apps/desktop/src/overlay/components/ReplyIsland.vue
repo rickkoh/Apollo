@@ -39,6 +39,7 @@ const labels = { sent: 'Your message', reply: 'Reply from Claude', error: 'Error
         >
             <span v-if="props.card.kind === 'sent'" class="you">You: </span>{{ props.card.text }}
         </p>
+        <p v-if="props.card.kind === 'sent' && props.card.message?.detail" class="note">{{ props.card.message.detail }}</p>
         <button
             v-if="overflowing && !props.card.expanded"
             class="more"
@@ -83,6 +84,11 @@ const labels = { sent: 'Your message', reply: 'Reply from Claude', error: 'Error
 .body.expanded {
     display: block;
     overflow-y: auto;
+}
+.note {
+    margin: 4px 0 0;
+    color: var(--warn);
+    font-size: 12px;
 }
 .more {
     position: absolute;

@@ -513,3 +513,65 @@ async fn without_a_presence_activity_stays_unknown() {
     h.command(Command::Tick).await;
     assert_eq!(h.view("a").await.activity, None);
 }
+
+fn pickup_harness() -> Harness {
+    harness_config(MemoryStore::new(), |c| c.pickup_timeout = Duration::from_millis(30))
+}
+
+/// Registers a session with the given activity, sends it a message and acknowledges it.
+async fn delivered_while(h: &mut Harness, activity: Activity) -> (Peer, MessageId) {
+    let (_, a) = h.register("a", "/w/a").await;
+    h.presence.set(a.pid, activity, datetime!(2026-10-25 15:00 UTC));
+    h.command(Command::Tick).await;
+    let message = h.handle.send("hello".into()).await.unwrap();
+    h.command(Command::Delivered {
+        session: sid("a"),
+        id: message.id,
+    })
+    .await;
+    h.events.take();
+    (a, message.id)
+}
+
+fn unheard(id: MessageId) -> Event {
+    Event::Updated(id, DeliveryStatus::Delivered, Some(NOT_PICKED_UP.to_owned()))
+}
+
+async fn after_the_pickup_timeout(h: &Harness) -> Vec<Event> {
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    h.command(Command::Tick).await;
+    h.command(Command::Tick).await;
+    h.events.take()
+}
+
+#[tokio::test]
+async fn a_message_an_idle_session_never_picks_up_is_flagged_once() {
+    let mut h = pickup_harness();
+    let (_a, id) = delivered_while(&mut h, Activity::Idle).await;
+    h.command(Command::Tick).await;
+    assert!(!h.events.take().contains(&unheard(id)), "not before the timeout");
+    let events = after_the_pickup_timeout(&h).await;
+    assert_eq!(events.iter().filter(|e| **e == unheard(id)).count(), 1);
+    let stored = h.handle.history(sid("a"), None, 1).await.unwrap().remove(0);
+    assert_eq!(
+        (stored.status, stored.detail.as_deref()),
+        (DeliveryStatus::Delivered, Some(NOT_PICKED_UP))
+    );
+}
+
+#[tokio::test]
+async fn any_activity_change_counts_as_heard_even_a_missed_busy_phase() {
+    let mut h = pickup_harness();
+    let (a, id) = delivered_while(&mut h, Activity::Idle).await;
+    h.presence
+        .set(a.pid, Activity::Idle, datetime!(2026-10-25 15:00:05 UTC));
+    h.command(Command::Tick).await;
+    assert!(!after_the_pickup_timeout(&h).await.contains(&unheard(id)));
+}
+
+#[tokio::test]
+async fn a_message_delivered_mid_turn_is_not_watched() {
+    let mut h = pickup_harness();
+    let (_a, id) = delivered_while(&mut h, Activity::Busy).await;
+    assert!(!after_the_pickup_timeout(&h).await.contains(&unheard(id)));
+}
