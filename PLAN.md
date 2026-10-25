@@ -33,6 +33,7 @@ Record every new decision and question here.
   development-channels dialog.
 - **R14 Any terminal.** Voice sessions run in any terminal, Cursor's integrated terminal included.
 - **R15 Activity.** The overlay shows whether the target is working, since a message waits until Claude's turn ends.
+- **R16 IDE panels.** Voice also reaches Claude Code sessions in Cursor's and VS Code's panels.
 
 ## 2. Decisions
 
@@ -128,8 +129,8 @@ Record every new decision and question here.
 - **D46 `cv` takes the approved route only when the approval file holds our entry as the approval command writes
   it** (a fixed-string `grep`), and the development flag otherwise, so a hand-edited or foreign file falls back to the
   dialog. `bin/cv-dev` always uses the development flag.
-- **D47 Voice reaches terminal sessions only, through `cv`,** Cursor's integrated terminal included. IDE panels run
-  Claude Code as an SDK host and stay out of reach (§16).
+- **D47 Voice reaches terminal sessions through `cv`,** Cursor's integrated terminal included, and IDE panel sessions
+  through the panel bridge (D67).
 - **D48 Cross-session messaging is not a delivery path.** Receivers treat peer messages as information, not user
   consent; Claude answers with `SendMessage` to a peer session, not to the overlay; the socket framing is undocumented.
 - **D49 Activity comes from Claude Code's session registry,** read per live session as `<claude pid>.json` (the
@@ -176,6 +177,20 @@ Record every new decision and question here.
   this app's `<resource dir>/plugin`, reinstalls when the installed `dist/channel.js` or `.mcp.json` differ from the
   bundle's, and disables the plugin user-wide; each step runs only when needed, through a `PluginCli` port. Settings
   reads it through its own `plugin_status` command, since that runs `claude`.
+- **D67 IDE panel sessions get voice through the Claude Code extension's `claudeCode.claudeProcessWrapper`,** which
+  runs our `cv-panel` launcher as `<launcher> <its claude binary> <args>` (§24). A session start (its arguments carry
+  `--input-format`) goes through the panel bridge; every other call, such as `plugin list` or `auth status`, runs
+  unchanged.
+- **D68 The panel bridge enables the channel with the SDK's `channel_enable` control request** (`enableChannel` in the
+  Agent SDK; the extension never sends it) once claude has answered the extension's `initialize`, retrying while the
+  server is still connecting. It adds `--settings` enabling the plugin for that session only, sets
+  `VOICE_BRIDGE_HOST=panel`, forwards everything else line by line, hides claude's answers to its own requests, passes
+  signals and the exit code through, and logs to stderr only, since stdout is the extension's transport.
+- **D69 Panel sessions get their own channel instructions:** dictated messages are answered with `reply`, typed chat
+  messages in the chat. Terminal sessions keep D4's.
+- **D70 The app installs `cv-panel` beside `cv` and only reads the editors' settings:** Settings shows, for Cursor and
+  VS Code, whether `claudeCode.claudeProcessWrapper` points at it, with the line to add and Copy; a different wrapper
+  already set is reported and left alone.
 
 ## 3. Architecture
 
@@ -277,8 +292,9 @@ voice-bridge/
     .mcp.json
     package.json, tsconfig.json, esbuild config in package.json scripts
     src/env.ts src/discovery.ts src/hub-client.ts src/mcp.ts src/main.ts
+    src/bridge.ts src/bridge-main.ts   the panel bridge (§24)
     test/
-    dist/channel.js               build output (git-ignored; bundled into the app)
+    dist/channel.js, dist/panel-bridge.js   build output (git-ignored; bundled into the app)
   bin/cv-dev                      launcher pointing at plugin/voice, for development
 ```
 
@@ -755,8 +771,8 @@ commands so unlisted ones are denied.
 - `app.security.csp`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost`.
 - `build.devUrl: http://localhost:1420`, `build.frontendDist: ../dist`, `beforeDevCommand: npm run dev`,
   `beforeBuildCommand: npm run build`.
-- `bundle.resources`: the plugin's `.claude-plugin/`, `.mcp.json` and `dist/` into `plugin/voice/`, and the
-  marketplace manifest into `plugin/.claude-plugin/`.
+- `bundle.resources`: the plugin's `.claude-plugin/`, `.mcp.json`, `dist/channel.js` and `dist/panel-bridge.js` into
+  `plugin/voice/`, and the marketplace manifest into `plugin/.claude-plugin/`.
 - `bundle.macOS.minimumSystemVersion: "13.0"`.
 
 ## 10. Frontend
@@ -961,7 +977,7 @@ contrast meets WCAG AA in both themes.
 | Hub actor | Rust unit tests with `MemoryStore` and a recording `HubEvents` | every command and rule in §5.5 |
 | Store | Rust tests on a temp SQLite file | migrations from empty, history paging, cascade on forget, purge, crash recovery of `queued` |
 | Server | Rust tests: server on a random port, `tokio-tungstenite` client | hello happy path, bad token, bad protocol, no hello, web origin refused, oversize frame, ping timeout, replaced connection |
-| Channel | `node:test` with a fake hub (`ws` dev dependency) and a fake MCP client | env errors, discovery changes, reconnect and backoff, notify-then-ack order, `reply` while disconnected |
+| Channel | `node:test` with a fake hub (`ws` dev dependency) and a fake MCP client | env errors, discovery changes, reconnect and backoff, notify-then-ack order, `reply` while disconnected, panel instructions; the panel bridge over fake streams: forwarding, `channel_enable` after `initialize`, retries, hidden answers |
 | End to end | `node:test` driving `hub-dev` and two real `dist/channel.js` processes | each message reaches only its session; replies tagged; a closed session drops; hub restart → reconnect within 10 s; delivery timeout → failed |
 | Settings, CLI | Rust unit tests | defaults, validation, atomic write; installer refuses a foreign `cv`; the generated `cv` run against a stub `claude` with a matching, a wrong and no approval file; approval states; plugin install steps through a fake `PluginCli` |
 | Presence | Rust tests on a temp sessions folder | busy, idle, `waiting`, `shell`, unknown `status`, extra fields, malformed or missing file |
@@ -1049,6 +1065,19 @@ Checks:
 - A session whose channel is refused shows "Claude hasn't picked this up" on its message within about 10 s.
 - The §13 rows for Settings, CLI and Presence are green. Lint clean.
 
+### Phase 5b — IDE panels (§24)
+
+Tasks: S6 (done); the panel bridge with tests; the panel instructions; `cv-panel` and the editors' wrapper status in
+Settings.
+
+Checks:
+- With Cursor's setting pointing at `cv-panel`, a new panel tab shows live in the overlay; a dictation is answered in
+  the overlay, and a message typed in that panel is answered in the panel.
+- Panels without the setting, `cv` sessions and plain `claude` sessions behave as before; the extension's plugin and
+  sign-in screens still work.
+- With the setting removed, new panel tabs start as before.
+- The bridge and instruction tests are green; Settings shows each editor's state. Lint clean.
+
 ### Phase 6 — Apollo: channels, releases and self-update (§23)
 
 After phase 5. Spikes first: **S7** answers Q18; **S8** proves the updater replacing an ad-hoc-signed
@@ -1072,8 +1101,8 @@ displays (Q13), the final logo (Q14), signing and notarisation.
 
 ## 16. Constraints
 
-- Voice sessions are terminal sessions started with `cv`; the VS Code and Cursor panels run Claude Code as an SDK
-  host and never receive channel events. Cursor's integrated terminal is a terminal.
+- Voice sessions are terminal sessions started with `cv`, or IDE panel sessions started through `cv-panel` (§24). A
+  panel runs Claude Code as an SDK host, which ignores `--channels`. Cursor's integrated terminal is a terminal.
 - The approved route (§22.2) needs the managed approval file; without it `cv` falls back to the development flag and
   its dialog. An organization's server-managed `allowedChannelPlugins` replaces the file.
 - Messages queue while Claude is busy; a channel cannot interrupt a turn.
@@ -1105,6 +1134,8 @@ displays (Q13), the final logo (Q14), signing and notarisation.
   wave)? Phase 7; phases 1–6 use the D27 placeholder.
 - **Q18** Which URL and header does GitLab 16.11 accept for a private project's raw file and generic package with a
   deploy token? (S7.)
+- **Q20** Why did a panel session started through the first S6 wrapper not load the plugin from `--settings`, when a
+  headless session with the same flags did? The bridge's log answers it if it recurs.
 - **Q19** A message that arrives mid-turn reaches Claude as a queued command at the next tool boundary, and in S5 Claude
   declined to act on it as not coming from the user. Should the channel instructions say mid-turn voice messages are
   the user too? Check with a dictation sent during a long turn.
@@ -1122,6 +1153,7 @@ app data, R7), Q10 (name: Voice Bridge for now), Q11 (D34), Q12 (D25), Q13 (D26)
 | S3 full screen and window type | passed | non-activating panel chosen (D35) |
 | S4 channel approval | passed: `per-session` | the drop-in file was read and `channelsEnabled` wasn't needed; `--settings` enabled the installed, user-disabled plugin and `--channels` loaded it with no dialog (debug log: `Channel notifications registered`); a dictation round-tripped; a plain `claude` started no `channel.js`. Without the file: "plugin voice@voice-bridge is not on the approved channels allowlist (use --dangerously-load-development-channels for local dev)", and the channel still registered with the hub (D64) |
 | S5 session registry activity | passed | the channel's parent pid names `~/.claude/sessions/<pid>.json`; around a foreground `sleep 15`, `status` read `idle → busy → idle` with `statusUpdatedAt` (Unix ms) moving each time. Two more values: `shell` (the turn ended, a background command still runs) and `waiting` (a permission prompt). A second message sent mid-turn queued and joined the same turn at its next tool boundary, with no `idle` between (Q19). The file goes when the session ends |
+| S6 IDE panel channel | passed | the wrapper call shape, `channel_enable` and unprompted turns (§24.1); a prototype bridge in Cursor: three panel sessions enabled on the first attempt, dictations answered in the overlay, closing a tab ended the session |
 | S7 GitLab feed and package access | not run | Q18: fetch a raw file and a generic package file from the GitLab project with a deploy token |
 | S8 in-place update | not run | the updater swaps an ad-hoc-signed `/Applications/Apollo.app` and relaunches; Gatekeeper stays quiet |
 
@@ -1212,6 +1244,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
 | 5 Native integration | built; manual checks pending | 2026-10-26 | S5 passed; S4 → `per-session` (D44); activity, the unheard hint (D64), the approved launcher, the plugin installer (D66) and the copy are in; every automated check green |
+| 5b IDE panels | in progress | 2026-10-26 | S6 passed with a prototype bridge (§24) |
 | 6a Rename and channels | not started | | |
 | 6b Changelog and release tooling | not started | | |
 | 6c Self-update and first releases | not started | | |
@@ -1237,7 +1270,8 @@ From Claude Code 2.1.310's docs and binary.
   last is the risk for `inline`. A refused channel's MCP server still starts.
 - **IDE panels** run Claude Code as an SDK host (`--input-format stream-json --output-format stream-json
   --permission-prompt-tool=stdio`). The docs cover channels in the terminal CLI only and say the flag is ignored under
-  the Agent SDK. `cv` in Cursor's integrated terminal is a CLI session.
+  the Agent SDK. `cv` in Cursor's integrated terminal is a CLI session. S6 found the host can switch a channel on
+  (§24).
 - **Session registry.** Every session, panels included, writes `~/.claude/sessions/<pid>.json` for cross-session
   messaging: `sessionId`, `cwd`, `name`, `entrypoint` (`cli`, `claude-vscode`), `status` (`busy`, `idle`, `shell`,
   `waiting`), `statusUpdatedAt` (Unix ms), `messagingSocketPath`, with a `.key` file beside it. The file goes when the
@@ -1317,7 +1351,7 @@ and channel approval.
   card read "Start a session with cv in any terminal, Cursor's included".
 - `alias claude=cv` is the user's choice, not app code. Once approval removes the dialog it makes every terminal
   session voice-ready at no cost; each one registers, and the automatic target (§5.5) is the first when none is live.
-- IDE panel sessions stay out of reach (§16).
+- IDE panel sessions get voice through the panel bridge (§24).
 
 ### 22.4 Activity (R15)
 
@@ -1356,8 +1390,7 @@ pub trait Presence: Send {
 - `everywhere`, the plugin enabled in every session and idle without a `cv` marker: its idle path still serves the
   `reply` tool and the "plain text never reaches the user" instructions to every session, panels included; the marker
   leaks into nested `claude` processes; and `cv-dev` would load a second copy for the same session.
-- Sessions without a channel shown as "Not voice-ready" (was D50, Q17), the IDE panel probe through Cursor's
-  `claudeCode.claudeProcessWrapper` (was S6, Q16), and an Activity column on Sessions.
+- Sessions without a channel shown as "Not voice-ready" (was D50, Q17) and an Activity column on Sessions.
 
 ## 23. Release and update
 
@@ -1407,3 +1440,63 @@ Phase 6 turns the working copy into an installed, self-updating Apollo while dev
   channels reconnect (phase 2's end-to-end test covers it); running sessions keep their old channel code (D59).
 - The dev channel builds without the updater's check and shows "Dev build" with the commit instead.
 
+## 24. IDE panel sessions (R16)
+
+Cursor's and VS Code's Claude Code panels run Claude Code as an SDK host: the extension starts `claude --input-format
+stream-json --output-format stream-json --permission-prompt-tool=stdio …` and talks to it in JSON lines. In that mode
+`--channels` is ignored; a channel is switched on only by the host's `channel_enable` control request, which the
+extension never sends. The panel bridge sends it on the extension's behalf (D67, D68).
+
+### 24.1 Findings (S6)
+
+- The extension runs `claudeCode.claudeProcessWrapper` as `<wrapper> <its claude binary> <args>`, for sessions and for
+  one-off subcommands (`auth status --json`, `plugin list --json`, `plugin enable …`); subcommands reject a trailing
+  `--settings`.
+- `{"type":"control_request","request_id":…,"request":{"subtype":"channel_enable","serverName":"plugin:voice:voice"}}`
+  answers `success` once the server is connected ("server … is not connected" before), and the channel then registers
+  as with `--channels` in a terminal. The code runs it through the same allowlist gate; a refusal without the approval
+  file is expected but untested.
+- A channel message starts a turn on its own, with no host input; the panel shows it as a user message and shows the
+  `reply` call.
+- The extension's SDK files a `control_response` it didn't ask for under unmatched responses (bounded) and otherwise
+  ignores it.
+- `--settings '{"enabledPlugins":{"voice@voice-bridge":true}}'` loads the user-disabled plugin in this mode (headless;
+  Q20 for the one panel session that didn't).
+- Panel sessions write the session registry with `status`, so activity works unchanged.
+- Under the terminal instructions Claude tells the panel "the overlay is the only place you see those replies" (D69).
+
+### 24.2 Launcher and bridge
+
+```sh
+#!/bin/sh
+# voice-bridge launcher
+case " $* " in
+    *" --input-format "*|*" --input-format="*) exec node '<resource dir>/plugin/voice/dist/panel-bridge.js' "$@" ;;
+esac
+exec "$@"
+```
+
+- `panel-bridge.js` is the plugin's second bundle (`src/bridge.ts`, entry `src/bridge-main.ts`), shipped beside
+  `channel.js`.
+- The bridge starts `<binary> <args> --settings '{"enabledPlugins":{"voice@voice-bridge":true}}'` with
+  `VOICE_BRIDGE_HOST=panel`. It forwards the extension's lines to claude and claude's lines to the extension. After
+  claude answers the extension's `initialize`, it sends `channel_enable` (`request_id` `voice-bridge-<n>`), retrying
+  every second while the server isn't connected, up to 30 times, and drops claude's answers to those requests. It
+  passes stderr through, forwards SIGTERM, SIGINT and SIGHUP, and exits with claude's code.
+- A bridge fault costs voice in a panel, never the panel: nothing of ours is sent before the extension's own first
+  request is answered, and nothing of the extension's is changed.
+
+### 24.3 Setup (D70)
+
+- Install writes `cv-panel` beside `cv`, under the same marker rules.
+- Settings → Cursor and VS Code panels: `cv-panel`'s state and, for each editor found on this Mac (Cursor:
+  `~/Library/Application Support/Cursor/User/settings.json`; VS Code: `…/Code/User/settings.json`), whether
+  `claudeCode.claudeProcessWrapper` is ours, unset (the line to add, with Copy) or another wrapper (left alone).
+- Only panel sessions started after the setting carry voice. Removing the setting returns panels to how they were.
+
+### 24.4 Panel instructions (D69)
+
+> Messages from this voice channel are the user speaking to you from the Voice Bridge overlay, dictated while they
+> may be looking away from this chat, so expect transcription slips. Answer every one, small talk included, by calling
+> this server's reply tool with one or two sentences on what you did or why you could not. Answer messages typed in
+> this chat in the chat, as usual.
