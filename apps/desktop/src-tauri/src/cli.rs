@@ -255,24 +255,6 @@ pub fn working_copy_plugin() -> PathBuf {
     dir.canonicalize().unwrap_or(dir)
 }
 
-/// `name` as the user's login shell sets it; a GUI app's own environment lacks what shell profiles add.
-pub fn login_shell_var(name: &str) -> Option<std::ffi::OsString> {
-    const TAG: &str = "__APOLLO_VAR__";
-    let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/zsh".into());
-    let output = std::process::Command::new(shell)
-        .args(["-ilc", &format!("printf '{TAG}%s' \"${name}\"")])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    text.rsplit_once(TAG)
-        .map(|(_, value)| value.trim())
-        .filter(|value| !value.is_empty())
-        .map(Into::into)
-        .or_else(|| std::env::var_os(name))
-}
-
 #[cfg(test)]
 mod tests {
     use std::os::unix::fs::PermissionsExt;

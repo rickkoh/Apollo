@@ -3,6 +3,7 @@ mod cli;
 mod commands;
 mod error;
 mod events;
+mod login_shell;
 mod macos;
 mod menu;
 mod panel;

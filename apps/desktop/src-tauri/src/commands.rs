@@ -8,6 +8,7 @@ use crate::channel::Channel;
 use crate::cli::{self, CliStatus, Launcher, Route};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
+use crate::login_shell;
 use crate::macos;
 use crate::panel::{PanelLauncher, PanelStatus};
 use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
@@ -140,7 +141,7 @@ fn bundled_plugin(state: &AppState) -> BundledPlugin {
 #[tauri::command]
 pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    tauri::async_runtime::spawn_blocking(move || launcher.status(cli::login_shell_var("PATH").as_deref()))
+    tauri::async_runtime::spawn_blocking(move || launcher.status(login_shell::var("PATH").as_deref()))
         .await
         .map_err(UiError::internal)
 }
@@ -152,7 +153,7 @@ pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus>
     let launcher = launcher(&state);
     let stable = (state.channel == Channel::Stable).then(|| (panel_launcher(&state), bundled_plugin(&state)));
     tauri::async_runtime::spawn_blocking(move || {
-        let path = cli::login_shell_var("PATH");
+        let path = login_shell::var("PATH");
         if let Some((panel, plugin)) = stable {
             plugin.install(&ClaudeCli::new(path.clone()))?;
             panel.install()?;
@@ -173,7 +174,7 @@ pub fn panel_status(state: State<'_, AppState>) -> PanelStatus {
 #[tauri::command]
 pub async fn plugin_status(state: State<'_, AppState>) -> CommandResult<PluginStatus> {
     let plugin = bundled_plugin(&state);
-    tauri::async_runtime::spawn_blocking(move || plugin.status(&ClaudeCli::new(cli::login_shell_var("PATH"))))
+    tauri::async_runtime::spawn_blocking(move || plugin.status(&ClaudeCli::new(login_shell::var("PATH"))))
         .await
         .map_err(UiError::internal)?
         .map_err(UiError::from)

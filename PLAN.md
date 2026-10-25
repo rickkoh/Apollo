@@ -172,7 +172,7 @@ Record every new decision and question here.
   "Claude hasn't picked this up", reusing `detail` on `delivered`, and the overlay shows it under the echo card. A
   refused channel still connects and acknowledges, and no file check sees an organization's allowlist. Any change of
   the session's `statusUpdatedAt` counts as heard, so a missed busy phase never flags.
-- **D65 The shell reads `CLAUDE_CONFIG_DIR` from the login shell on a background thread** (`login_shell_var`, D42);
+- **D65 The shell reads `CLAUDE_CONFIG_DIR` from the login shell on a background thread** (`login_shell::var`, D42);
   activity reads as unknown until it answers, so a slow shell profile never delays startup.
 - **D66 Install keeps the plugin in line with this app:** it re-adds the `apollo` marketplace when its path isn't
   this app's `<resource dir>/plugin`, reinstalls when the installed `dist/channel.js` or `.mcp.json` differ from the
@@ -355,6 +355,7 @@ apollo/
       src/cli.rs                  cv launcher install, approval status
       src/plugin_cli.rs           voice plugin install through the claude CLI
       src/presence.rs             the session registry, located through the login shell
+      src/login_shell.rs          the user's login-shell environment (D42)
       src/macos.rs                native window settings (D20)
   plugin/.claude-plugin/marketplace.json   the bundled marketplace (§22.2)
   plugin/voice/

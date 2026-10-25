@@ -5,14 +5,14 @@ use hub::presence::ClaudeSessions;
 use hub::{Activity, Presence};
 use time::OffsetDateTime;
 
-use crate::cli;
+use crate::login_shell;
 
 /// Claude Code's sessions under `$CLAUDE_CONFIG_DIR`, else `~/.claude`, found off the startup path since the login
 /// shell is slow; activity and titles read as unknown until then.
 pub fn claude_sessions(home: PathBuf) -> Box<dyn Presence> {
     let (found, rx) = mpsc::channel();
     std::thread::spawn(move || {
-        let config = cli::login_shell_var("CLAUDE_CONFIG_DIR").map_or_else(|| home.join(".claude"), PathBuf::from);
+        let config = login_shell::var("CLAUDE_CONFIG_DIR").map_or_else(|| home.join(".claude"), PathBuf::from);
         let _ = found.send(ClaudeSessions::new(config));
     });
     Box::new(Deferred { rx, sessions: None })
