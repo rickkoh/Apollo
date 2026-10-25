@@ -17,6 +17,7 @@ pub enum UiErrorCode {
     SessionLive,
     InvalidSettings,
     CliConflict,
+    PluginInstall,
     HubDown,
     Internal,
 }
@@ -81,6 +82,7 @@ impl From<CliError> for UiError {
     fn from(err: CliError) -> Self {
         match err {
             CliError::Conflict(_) => Self::new(UiErrorCode::CliConflict, err.to_string()),
+            CliError::Plugin { .. } => Self::new(UiErrorCode::PluginInstall, err.to_string()),
             CliError::Io(_) => Self::internal(err),
         }
     }

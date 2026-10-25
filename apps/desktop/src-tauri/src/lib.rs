@@ -4,6 +4,7 @@ mod error;
 mod events;
 mod macos;
 mod menu;
+mod plugin_cli;
 mod presence;
 mod settings;
 mod state;
@@ -41,7 +42,7 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let home = app.path().home_dir()?;
     let paths = AppPaths {
         discovery: data.join("hub.json"),
-        plugin: app.path().resource_dir()?.join("plugin/voice"),
+        marketplace: app.path().resource_dir()?.join("plugin"),
         bin: home.join(".local/bin"),
         data,
     };
@@ -127,6 +128,7 @@ pub fn run() {
             commands::open_panel,
             commands::cli_status,
             commands::install_cli,
+            commands::plugin_status,
             commands::about,
             commands::reveal_data_folder,
         ])

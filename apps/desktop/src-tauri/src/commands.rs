@@ -7,6 +7,7 @@ use ts_rs::TS;
 use crate::cli::{self, CliStatus, Launcher};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
+use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
 use crate::settings::Settings;
 use crate::state::AppState;
 use crate::windows::{overlay, panel};
@@ -103,7 +104,13 @@ pub fn open_panel(app: AppHandle, route: Option<String>) -> CommandResult<()> {
 fn launcher(state: &AppState) -> Launcher {
     Launcher {
         bin_dir: state.paths.bin.clone(),
-        plugin_dir: state.paths.plugin.clone(),
+        approval_path: cli::APPROVAL_PATH.into(),
+    }
+}
+
+fn bundled_plugin(state: &AppState) -> BundledPlugin {
+    BundledPlugin {
+        marketplace: state.paths.marketplace.clone(),
     }
 }
 
@@ -115,10 +122,26 @@ pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> 
         .map_err(UiError::internal)
 }
 
+/// Installs the plugin first, so a failure leaves the previous launcher in place.
 #[tauri::command]
 pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    tauri::async_runtime::spawn_blocking(move || launcher.install(cli::login_shell_var("PATH").as_deref()))
+    let plugin = bundled_plugin(&state);
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = cli::login_shell_var("PATH");
+        plugin.install(&ClaudeCli::new(path.clone()))?;
+        launcher.install(path.as_deref())
+    })
+    .await
+    .map_err(UiError::internal)?
+    .map_err(UiError::from)
+}
+
+/// Runs `claude` twice, so only Settings asks.
+#[tauri::command]
+pub async fn plugin_status(state: State<'_, AppState>) -> CommandResult<PluginStatus> {
+    let plugin = bundled_plugin(&state);
+    tauri::async_runtime::spawn_blocking(move || plugin.status(&ClaudeCli::new(cli::login_shell_var("PATH"))))
         .await
         .map_err(UiError::internal)?
         .map_err(UiError::from)

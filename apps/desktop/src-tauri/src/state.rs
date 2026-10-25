@@ -9,8 +9,8 @@ use crate::settings::SettingsService;
 pub struct AppPaths {
     pub data: PathBuf,
     pub discovery: PathBuf,
-    /// The bundled voice plugin `cv` loads.
-    pub plugin: PathBuf,
+    /// The bundled marketplace holding the voice plugin (`<resource dir>/plugin`).
+    pub marketplace: PathBuf,
     /// Where `cv` is installed (`~/.local/bin`).
     pub bin: PathBuf,
 }

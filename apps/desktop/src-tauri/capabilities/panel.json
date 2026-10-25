@@ -21,6 +21,7 @@
     "allow-recent-messages",
     "allow-cli-status",
     "allow-install-cli",
+    "allow-plugin-status",
     "allow-about",
     "allow-reveal-data-folder",
     "core:window:allow-start-dragging"

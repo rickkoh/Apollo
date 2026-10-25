@@ -17,6 +17,7 @@ const COMMANDS: &[&str] = &[
     "recent_messages",
     "cli_status",
     "install_cli",
+    "plugin_status",
     "about",
     "reveal_data_folder",
 ];

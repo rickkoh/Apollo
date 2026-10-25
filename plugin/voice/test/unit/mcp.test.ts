@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
@@ -26,6 +27,13 @@ test('declares the channel capability, the instructions and the reply tool', asy
     assert.ok(instructions.includes('plain text never reaches them'))
     const { tools } = await client.listTools()
     assert.deepEqual(tools.map(t => t.name), ['reply'])
+})
+
+test('the server, plugin.json and package.json carry one version', async () => {
+    const client = await connect({ connected: true, reply: async () => {} })
+    const version = (file: string) => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8')).version
+    assert.equal(client.getServerVersion()?.version, version('../../.claude-plugin/plugin.json'))
+    assert.equal(client.getServerVersion()?.version, version('../../package.json'))
 })
 
 test('reply forwards to the hub', async () => {

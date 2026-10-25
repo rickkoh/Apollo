@@ -1,16 +1,37 @@
-//! The `cv` launcher the app installs into `~/.local/bin` (PLAN.md D18, §7.6).
+//! The `cv` launcher the app installs into `~/.local/bin` (PLAN.md D18, §7.6, §22.2).
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
+use serde_json::Value;
 use ts_rs::TS;
 
 pub const MARKER: &str = "# voice-bridge launcher";
+/// The managed-settings drop-in that approves the voice channel (D45); the user writes it once with `sudo`.
+pub const APPROVAL_PATH: &str = "/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json";
+pub const MARKETPLACE: &str = "voice-bridge";
+pub const PLUGIN_ID: &str = "voice@voice-bridge";
+const CHANNEL: &str = "plugin:voice@voice-bridge";
+/// Our `allowedChannelPlugins` entry exactly as the approval command writes it; the launcher greps for this text.
+const APPROVAL_ENTRY: &str = r#"{"marketplace":"voice-bridge","plugin":"voice"}"#;
 const COMMAND: &str = "cv";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ApprovalState {
+    Approved,
+    Missing,
+    /// The file lacks our entry as the approval command writes it, so `cv` keeps the dialog.
+    WrongEntry,
+    Unreadable,
+    /// `managed-settings.json` sets its own `allowedChannelPlugins` without ours and may replace it.
+    Conflict,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -18,13 +39,16 @@ const COMMAND: &str = "cv";
 pub struct CliStatus {
     /// Our launcher is at `path`.
     pub installed: bool,
-    /// It points at this app's plugin; false means a reinstall is due.
+    /// It is this app's launcher script; false means a reinstall is due.
     pub up_to_date: bool,
     pub path: String,
     /// The folder is on the user's login-shell `PATH`.
     pub on_path: bool,
     /// A `cv` we didn't write is in the way.
     pub foreign: bool,
+    pub approval: ApprovalState,
+    /// The `sudo` command that writes the approval file.
+    pub approval_command: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -33,22 +57,79 @@ pub enum CliError {
     Conflict(String),
     #[error("cannot write the launcher: {0}")]
     Io(#[from] std::io::Error),
+    #[error("`{step}` failed: {stderr}")]
+    Plugin { step: String, stderr: String },
 }
 
 fn single_quoted(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', r"'\''"))
 }
 
-pub fn script(plugin_dir: &Path) -> String {
+/// Both branches load the same installed plugin; only an approval file holding our entry skips the dialog.
+pub fn script(approval_path: &Path) -> String {
+    let plugin = format!("--settings '{{\"enabledPlugins\":{{\"{PLUGIN_ID}\":true}}}}'");
     format!(
-        "#!/bin/sh\n{MARKER}\nexec claude --plugin-dir {} --dangerously-load-development-channels plugin:voice@inline \"$@\"\n",
-        single_quoted(plugin_dir)
+        "#!/bin/sh\n\
+         {MARKER}\n\
+         if grep -qF '{APPROVAL_ENTRY}' {approval} 2>/dev/null; then\n    \
+         exec claude {plugin} --channels {CHANNEL} \"$@\"\n\
+         fi\n\
+         exec claude {plugin} --dangerously-load-development-channels {CHANNEL} \"$@\"\n",
+        approval = single_quoted(approval_path),
     )
+}
+
+fn approval_json() -> String {
+    format!(r#"{{"allowedChannelPlugins":[{APPROVAL_ENTRY}]}}"#)
+}
+
+fn approval_command(approval_path: &Path) -> String {
+    format!(
+        "sudo mkdir -p {} && echo '{}' | sudo tee {} > /dev/null",
+        single_quoted(approval_path.parent().unwrap_or(approval_path)),
+        approval_json(),
+        single_quoted(approval_path)
+    )
+}
+
+fn allows_voice(settings: &Value) -> Option<bool> {
+    let entries = settings.get("allowedChannelPlugins")?.as_array()?;
+    Some(
+        entries
+            .iter()
+            .any(|e| e["marketplace"] == MARKETPLACE && e["plugin"] == "voice"),
+    )
+}
+
+pub fn approval_state(approval_path: &Path) -> ApprovalState {
+    let text = match fs::read_to_string(approval_path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return ApprovalState::Missing,
+        Err(_) => return ApprovalState::Unreadable,
+    };
+    let Ok(settings) = serde_json::from_str::<Value>(&text) else {
+        return ApprovalState::Unreadable;
+    };
+    if allows_voice(&settings) != Some(true) || !text.contains(APPROVAL_ENTRY) {
+        return ApprovalState::WrongEntry;
+    }
+    let managed = approval_path
+        .parent()
+        .and_then(Path::parent)
+        .map(|dir| dir.join("managed-settings.json"));
+    let overriding = managed
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|settings| allows_voice(&settings));
+    if overriding == Some(false) {
+        return ApprovalState::Conflict;
+    }
+    ApprovalState::Approved
 }
 
 pub struct Launcher {
     pub bin_dir: PathBuf,
-    pub plugin_dir: PathBuf,
+    pub approval_path: PathBuf,
 }
 
 impl Launcher {
@@ -64,10 +145,12 @@ impl Launcher {
             .is_some_and(|text| text.lines().nth(1) == Some(MARKER));
         CliStatus {
             installed: ours,
-            up_to_date: ours && existing.as_deref() == Some(script(&self.plugin_dir).as_str()),
+            up_to_date: ours && existing.as_deref() == Some(script(&self.approval_path).as_str()),
             path: target.to_string_lossy().into_owned(),
             on_path: path_env.is_some_and(|paths| std::env::split_paths(paths).any(|p| p == self.bin_dir)),
             foreign: target.exists() && !ours,
+            approval: approval_state(&self.approval_path),
+            approval_command: approval_command(&self.approval_path),
         }
     }
 
@@ -85,7 +168,7 @@ impl Launcher {
             .truncate(true)
             .mode(0o755)
             .open(&tmp)?;
-        file.write_all(script(&self.plugin_dir).as_bytes())?;
+        file.write_all(script(&self.approval_path).as_bytes())?;
         file.sync_all()?;
         fs::rename(&tmp, &target)?;
         Ok(self.status(path_env))
@@ -116,46 +199,139 @@ mod tests {
 
     use super::*;
 
-    fn launcher(dir: &tempfile::TempDir) -> Launcher {
-        Launcher {
+    struct Fixture {
+        dir: tempfile::TempDir,
+        launcher: Launcher,
+    }
+
+    fn fixture() -> Fixture {
+        let dir = tempfile::tempdir().unwrap();
+        let launcher = Launcher {
             bin_dir: dir.path().join("bin"),
-            plugin_dir: PathBuf::from("/Apps/Voice Bridge.app/plugin/voice"),
+            approval_path: dir.path().join("ClaudeCode/managed-settings.d/voice-bridge.json"),
+        };
+        Fixture { dir, launcher }
+    }
+
+    impl Fixture {
+        fn approve(&self, text: &str) {
+            fs::create_dir_all(self.launcher.approval_path.parent().unwrap()).unwrap();
+            fs::write(&self.launcher.approval_path, text).unwrap();
+        }
+
+        fn managed(&self, text: &str) {
+            fs::write(self.dir.path().join("ClaudeCode/managed-settings.json"), text).unwrap();
+        }
+
+        fn approval(&self) -> ApprovalState {
+            approval_state(&self.launcher.approval_path)
+        }
+
+        /// Runs the installed `cv` with a stub `claude` that records its arguments.
+        fn run_cv(&self) -> Vec<String> {
+            let stub = self.dir.path().join("stub");
+            fs::create_dir_all(&stub).unwrap();
+            let claude = stub.join("claude");
+            fs::write(&claude, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGV_OUT\"\n").unwrap();
+            fs::set_permissions(&claude, fs::Permissions::from_mode(0o755)).unwrap();
+            let out = self.dir.path().join("argv");
+            let status = std::process::Command::new(self.launcher.bin_dir.join("cv"))
+                .args(["--resume", "it's"])
+                .env("PATH", format!("{}:/usr/bin:/bin", stub.display()))
+                .env("ARGV_OUT", &out)
+                .status()
+                .unwrap();
+            assert!(status.success());
+            fs::read_to_string(out).unwrap().lines().map(str::to_owned).collect()
         }
     }
 
+    fn argv(route: &str) -> Vec<String> {
+        [
+            "--settings",
+            r#"{"enabledPlugins":{"voice@voice-bridge":true}}"#,
+            route,
+            "plugin:voice@voice-bridge",
+            "--resume",
+            "it's",
+        ]
+        .map(str::to_owned)
+        .to_vec()
+    }
+
     #[test]
-    fn the_script_carries_the_marker_and_a_quoted_plugin_dir() {
-        let text = script(Path::new("/a/it's here/voice"));
+    fn the_script_carries_the_marker_and_a_quoted_approval_path() {
+        let text = script(Path::new("/a/it's here/voice-bridge.json"));
         assert!(text.starts_with("#!/bin/sh\n# voice-bridge launcher\n"));
-        assert!(text.contains(
-            r"--plugin-dir '/a/it'\''s here/voice' --dangerously-load-development-channels plugin:voice@inline"
-        ));
+        assert!(text.contains(r"'/a/it'\''s here/voice-bridge.json'"));
+    }
+
+    #[test]
+    fn cv_takes_the_approved_route_only_with_our_entry() {
+        let f = fixture();
+        f.launcher.install(None).unwrap();
+        assert_eq!(f.run_cv(), argv("--dangerously-load-development-channels"), "no file");
+        f.approve(r#"{"allowedChannelPlugins":[{"marketplace":"inline","plugin":"voice"}]}"#);
+        assert_eq!(
+            f.run_cv(),
+            argv("--dangerously-load-development-channels"),
+            "wrong entry"
+        );
+        f.approve(&approval_json());
+        assert_eq!(f.run_cv(), argv("--channels"), "approved");
+    }
+
+    #[test]
+    fn approval_states() {
+        let f = fixture();
+        assert_eq!(f.approval(), ApprovalState::Missing);
+        f.approve("{ not json");
+        assert_eq!(f.approval(), ApprovalState::Unreadable);
+        f.approve(r#"{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"other"}]}"#);
+        assert_eq!(f.approval(), ApprovalState::WrongEntry);
+        f.approve(r#"{ "allowedChannelPlugins": [{ "marketplace": "voice-bridge", "plugin": "voice" }] }"#);
+        assert_eq!(
+            f.approval(),
+            ApprovalState::WrongEntry,
+            "hand-formatted: the launcher's grep misses it"
+        );
+        f.approve(&approval_json());
+        assert_eq!(f.approval(), ApprovalState::Approved);
+        f.managed(r#"{"allowedChannelPlugins":[{"marketplace":"acme","plugin":"chat"}]}"#);
+        assert_eq!(f.approval(), ApprovalState::Conflict);
+        f.managed(r#"{"allowedChannelPlugins":[{"marketplace":"voice-bridge","plugin":"voice"}]}"#);
+        assert_eq!(f.approval(), ApprovalState::Approved);
+        f.managed(r#"{"permissions":{}}"#);
+        assert_eq!(f.approval(), ApprovalState::Approved);
+    }
+
+    #[test]
+    fn the_approval_command_writes_the_path_cv_checks() {
+        let command = approval_command(Path::new(APPROVAL_PATH));
+        assert_eq!(
+            command,
+            "sudo mkdir -p '/Library/Application Support/ClaudeCode/managed-settings.d' && echo \
+             '{\"allowedChannelPlugins\":[{\"marketplace\":\"voice-bridge\",\"plugin\":\"voice\"}]}' | sudo tee \
+             '/Library/Application Support/ClaudeCode/managed-settings.d/voice-bridge.json' > /dev/null"
+        );
     }
 
     #[test]
     fn install_writes_an_executable_launcher() {
-        let dir = tempfile::tempdir().unwrap();
-        let l = launcher(&dir);
-        assert_eq!(
-            l.status(None),
-            CliStatus {
-                installed: false,
-                up_to_date: false,
-                path: dir.path().join("bin/cv").to_string_lossy().into_owned(),
-                on_path: false,
-                foreign: false,
-            }
-        );
-        let status = l.install(None).unwrap();
+        let f = fixture();
+        let before = f.launcher.status(None);
+        assert!(!before.installed && !before.up_to_date && !before.foreign && !before.on_path);
+        assert_eq!(before.path, f.dir.path().join("bin/cv").to_string_lossy());
+        let status = f.launcher.install(None).unwrap();
         assert!(status.installed && status.up_to_date && !status.foreign);
-        let mode = fs::metadata(dir.path().join("bin/cv")).unwrap().permissions().mode();
+        let mode = fs::metadata(f.dir.path().join("bin/cv")).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o755);
     }
 
     #[test]
     fn install_refuses_a_foreign_cv_and_leaves_it_alone() {
-        let dir = tempfile::tempdir().unwrap();
-        let l = launcher(&dir);
+        let f = fixture();
+        let l = &f.launcher;
         fs::create_dir_all(&l.bin_dir).unwrap();
         fs::write(l.bin_dir.join("cv"), "#!/bin/sh\necho mine\n").unwrap();
         assert!(l.status(None).foreign);
@@ -168,10 +344,11 @@ mod tests {
 
     #[test]
     fn an_outdated_launcher_of_ours_is_reinstalled() {
-        let dir = tempfile::tempdir().unwrap();
-        let l = launcher(&dir);
+        let f = fixture();
+        let l = &f.launcher;
         fs::create_dir_all(&l.bin_dir).unwrap();
-        fs::write(l.bin_dir.join("cv"), script(Path::new("/old/place"))).unwrap();
+        let inline = format!("#!/bin/sh\n{MARKER}\nexec claude --plugin-dir '/old' plugin:voice@inline \"$@\"\n");
+        fs::write(l.bin_dir.join("cv"), inline).unwrap();
         let before = l.status(None);
         assert!(before.installed && !before.up_to_date);
         assert!(l.install(None).unwrap().up_to_date);
@@ -179,8 +356,8 @@ mod tests {
 
     #[test]
     fn on_path_reads_the_given_path() {
-        let dir = tempfile::tempdir().unwrap();
-        let l = launcher(&dir);
+        let f = fixture();
+        let l = &f.launcher;
         let with = std::env::join_paths([PathBuf::from("/usr/bin"), l.bin_dir.clone()]).unwrap();
         assert!(l.status(Some(&with)).on_path);
         assert!(!l.status(Some(OsStr::new("/usr/bin:/bin"))).on_path);

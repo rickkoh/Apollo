@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import * as api from '../../shared/api'
 import { useCli } from '../../shared/composables/useCli'
 import { useHub } from '../../shared/composables/useHub'
 import { useSettings } from '../../shared/composables/useSettings'
-import type { AboutInfo } from '../../shared/types'
+import type { AboutInfo, ApprovalState, PluginStatus } from '../../shared/types'
 import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
@@ -14,6 +14,45 @@ const cli = useCli()
 const hub = useHub()
 const info = ref<AboutInfo | null>(null)
 api.about().then(a => (info.value = a))
+
+const plugin = ref<PluginStatus | null>(null)
+const pluginError = ref<string | null>(null)
+async function loadPlugin(): Promise<void> {
+    pluginError.value = null
+    try {
+        plugin.value = await api.pluginStatus()
+    } catch (err) {
+        pluginError.value = api.isUiError(err) ? err.message : String(err)
+    }
+}
+loadPlugin()
+
+async function install(): Promise<void> {
+    await cli.install()
+    await loadPlugin()
+}
+
+const pluginHint = computed(() => {
+    if (pluginError.value) return pluginError.value
+    if (!plugin.value) return 'Checking…'
+    if (!plugin.value.installed) return 'Not installed'
+    return plugin.value.upToDate ? 'Installed' : 'Installed, an update is due'
+})
+
+const approvalHints: Record<ApprovalState, string> = {
+    approved: 'Approved: cv starts without the development-channels dialog',
+    missing: 'Not approved: cv shows Claude Code’s development-channels dialog. Run this once in a terminal',
+    wrong_entry: 'The approval file doesn’t approve the voice plugin. Run this to rewrite it',
+    unreadable: 'The approval file can’t be read. Run this to rewrite it',
+    conflict: 'managed-settings.json sets its own approved channels, which can replace this approval. Add the voice plugin there',
+}
+const approval = computed(() => cli.status.value?.approval ?? null)
+const copiedApproval = ref(false)
+async function copyApproval(): Promise<void> {
+    await navigator.clipboard.writeText(cli.status.value?.approvalCommand ?? '')
+    copiedApproval.value = true
+    setTimeout(() => (copiedApproval.value = false), 1500)
+}
 
 const error = ref<string | null>(null)
 const confirmingClear = ref(false)
@@ -79,7 +118,7 @@ async function clearAll(): Promise<void> {
                 label="cv"
                 :hint="cli.status.value?.installed ? (cli.status.value.upToDate ? 'Installed' : 'Installed, points at another copy of the app') : 'Not installed'"
             >
-                <button class="button" type="button" :disabled="cli.busy.value || cli.status.value?.foreign" @click="cli.install">
+                <button class="button" type="button" :disabled="cli.busy.value || cli.status.value?.foreign" @click="install">
                     {{ cli.status.value?.installed ? 'Reinstall' : 'Install' }}
                 </button>
             </SettingRow>
@@ -91,6 +130,13 @@ async function clearAll(): Promise<void> {
                 <code>~/.local/bin</code> isn't on your <code>PATH</code>. Add
                 <code>export PATH="$HOME/.local/bin:$PATH"</code> to your shell profile.
             </p>
+            <SettingRow label="Voice plugin" :hint="pluginHint" />
+            <SettingRow v-if="approval" label="Channel approval" :hint="approvalHints[approval]">
+                <button v-if="approval !== 'approved' && approval !== 'conflict'" class="button" type="button" @click="copyApproval">
+                    {{ copiedApproval ? 'Copied' : 'Copy' }}
+                </button>
+            </SettingRow>
+            <pre v-if="approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
             <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>
         </Card>
 
@@ -142,5 +188,15 @@ input[type='number'] {
 }
 .warn {
     color: var(--warn);
+}
+.command {
+    margin: 0 0 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--island-border);
+    border-radius: 8px;
+    background: var(--panel-bg);
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 </style>

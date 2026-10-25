@@ -10,6 +10,7 @@ import type {
     MessageId,
     MessageUpdated,
     OverlayVisibility,
+    PluginStatus,
     SessionId,
     SessionView,
     Settings,
@@ -53,6 +54,7 @@ export const overlayVisible = () => call<boolean>('overlay_visible')
 export const setOverlayVisible = (visible: boolean) => call<void>('set_overlay_visible', { visible })
 export const cliStatus = () => call<CliStatus>('cli_status')
 export const installCli = () => call<CliStatus>('install_cli')
+export const pluginStatus = () => call<PluginStatus>('plugin_status')
 export const about = () => call<AboutInfo>('about')
 export const revealDataFolder = () => call<void>('reveal_data_folder')
 export const openPanel = (route?: string) => call<void>('open_panel', { route: route ?? null })
