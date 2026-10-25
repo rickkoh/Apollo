@@ -1147,7 +1147,7 @@ Question round 2026-10-25. Decisions D24–D30 came from it.
 
 | Phase | Status | Date | Notes |
 |---|---|---|---|
-| 1 Skeleton | done | 2026-10-25 | all four checks passed; window check by CoreGraphics window list (no screen-capture permission) |
+| 1 Skeleton | done | 2026-10-25 | all four checks passed; window check re-verified (overlay and panel `onscreen 1`, rendering confirmed by the user) |
 | 2 Hub and channel | done | 2026-10-25 | 44 Rust + 15 channel + 4 end-to-end tests green; manual two-session check and Q11 passed |
 | 3 S3 and overlay | done | 2026-10-25 | S3 → panel (D35); stack (D36) and restore grace (D37) added; all checks passed |
 | 4 Control panel | done | 2026-10-25 | all checks passed; `cv` installed in `~/.local/bin` (points at `target/debug`; reinstall from a built app) |
