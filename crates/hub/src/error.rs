@@ -8,6 +8,9 @@ pub enum StoreError {
     Time(String),
     #[error("stored value: {0}")]
     Corrupt(String),
+    /// A newer app migrated the database; this one must not touch it (D59).
+    #[error("the database is at schema version {found}, newer than this app's {known}")]
+    NewerSchema { found: i64, known: i64 },
 }
 
 #[derive(Debug, Error)]

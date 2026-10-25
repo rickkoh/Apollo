@@ -208,8 +208,8 @@ Record every new decision and question here.
   development flag, pointed at Apollo Dev's discovery file unless the variable is already set (so `hub-dev` still
   works). `bin/cv-dev` goes. Apollo Dev installs no panel wrapper and runs no plugin installer; panels reach the stable
   app.
-- **D76 The stable app can open at login:** Settings → General, off by default, through macOS Login Items
-  (`tauri-plugin-autostart`). Apollo Dev doesn't offer it. Moved from phase 7.
+- **D76 The stable app can open at login:** Settings → General, off by default, through macOS Login Items (D80).
+  Apollo Dev doesn't offer it. Moved from phase 7.
 - **D77 The channel comes from the bundle identifier** (`Channel`, `.dev` suffix), and a debug build under the stable
   identifier refuses to start: `tauri dev` without the dev config would otherwise share the stable app's data and
   overwrite its `cv` and marketplace. Apollo Dev starts with `npm --prefix apps/desktop run app`.
@@ -218,6 +218,14 @@ Record every new decision and question here.
   still be pointed at by hand.
 - **D79 Menus, the menu bar item and window titles take the app name from `productName`,** so Apollo Dev names itself
   and the rename changes only the config for them.
+- **D80 Open at login uses `SMAppService.mainApp`** (ServiceManagement, macOS 13+), not `tauri-plugin-autostart`: the
+  system's own Login Items entry, no LaunchAgent file and no Automation prompt. Its state is read from the system, so
+  removing it in System Settings shows in Apollo.
+- **D81 The menu bar's "Update to vX.Y.Z…" opens Settings, where the notes and the install button are;** installing
+  happens only there, so the notes are always in front of the click.
+- **D82 The deploy token is a Keychain item under the bundle identifier** (account `gitlab-deploy-token`), saved and
+  removed in Settings → About; saving one checks at once. The updater requires the signed version
+  (`requireSignedVersion`), so a feed can't pair a newer number with an older signed build.
 
 ## 3. Architecture
 
@@ -775,6 +783,10 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `clear_history` | | `()` | panel |
 | `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |
 | `about` | | `AboutInfo { version, channel, commit, dataDir }` | both |
+| `update_status` | | `UpdateStatus \| null` (null in Apollo Dev) | panel |
+| `check_for_updates` / `install_update` | | `UpdateStatus` / `()` (relaunches) | panel |
+| `save_deploy_token` | `token?` | `UpdateStatus` | panel |
+| `open_at_login` / `set_open_at_login` | / `enabled` | `boolean \| null` / `boolean` | panel |
 | `reveal_data_folder` | | `()` | panel |
 
 Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_target`, `target_offline`,
@@ -788,6 +800,7 @@ Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_t
 | `message-updated` | `{ id, status, detail }` |
 | `settings-changed` | `Settings` |
 | `overlay-visibility` | `{ visible: boolean }` |
+| `update-status` | `UpdateStatus` |
 
 ### 9.8 Capabilities
 

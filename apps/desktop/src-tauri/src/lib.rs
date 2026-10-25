@@ -11,10 +11,12 @@ mod presence;
 mod settings;
 mod state;
 mod tray;
+mod updates;
 mod windows;
 
 use std::sync::Arc;
 
+use hub::StoreError;
 use hub::store::{SqliteStore, Store};
 use hub::{Hub, HubConfig, Token, discovery};
 use tauri::{ActivationPolicy, AppHandle, Manager, RunEvent};
@@ -25,6 +27,7 @@ use crate::channel::Channel;
 use crate::events::{HUB_STATE, HubState, TauriEvents};
 use crate::settings::SettingsService;
 use crate::state::{AppPaths, AppState};
+use crate::updates::Updates;
 
 /// Startup, PLAN.md §3.2.
 fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -56,7 +59,21 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let settings = SettingsService::load(paths.data.join("settings.json"));
-    let mut store = SqliteStore::open(&paths.data.join("voice.db"))?;
+    let mut store = match SqliteStore::open(&paths.data.join("voice.db")) {
+        Err(StoreError::NewerSchema { found, known }) => {
+            let name = &app.package_info().name;
+            macos::alert(
+                &format!("This {name} is older than its data"),
+                &format!(
+                    "A newer {name} updated the history database (schema {found}; this version knows {known}). \
+                     Install the latest {name}, or move {} aside to start fresh.",
+                    paths.data.display()
+                ),
+            );
+            std::process::exit(1);
+        }
+        store => store?,
+    };
     let retention = Duration::days(settings.get().history.retention_days.into());
     let purged = store.purge_before(OffsetDateTime::now_utc() - retention)?;
     tracing::info!(purged, "history retention applied");
@@ -75,11 +92,27 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     ))?;
     discovery::write(&paths.discovery, running.port, &token)?;
     let visible_at_launch = settings.get().overlay.visible_at_launch;
-    app.manage(AppState::new(channel, paths, settings, running));
+    let updates = (channel == Channel::Stable).then(|| Updates::new(app.config().identifier.clone()));
+    app.manage(AppState::new(channel, paths, settings, updates, running));
 
     windows::overlay::create(app)?;
     windows::overlay::set_visible(app, visible_at_launch)?;
+    if channel == Channel::Stable {
+        check_for_updates_every(app.clone());
+    }
     Ok(())
+}
+
+/// At launch, then every `CHECK_EVERY` (D56).
+fn check_for_updates_every(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            if let Some(updates) = &app.state::<AppState>().updates {
+                updates.check(&app).await;
+            }
+            tokio::time::sleep(updates::CHECK_EVERY).await;
+        }
+    });
 }
 
 /// Shutdown, PLAN.md §3.3.
@@ -109,13 +142,18 @@ pub(crate) fn stop_hub(app: &AppHandle) {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let context = tauri::generate_context!();
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Err(err) = windows::panel::open(app, None) {
                 tracing::error!("opening the control panel failed: {err}");
             }
         }))
-        .plugin(tauri_nspanel::init())
+        .plugin(tauri_nspanel::init());
+    if Channel::of(&context.config().identifier) == Channel::Stable {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    builder
         .setup(|app| start(app.handle()))
         .invoke_handler(tauri::generate_handler![
             commands::hub_status,
@@ -140,8 +178,14 @@ pub fn run() {
             commands::panel_status,
             commands::about,
             commands::reveal_data_folder,
+            commands::update_status,
+            commands::check_for_updates,
+            commands::install_update,
+            commands::save_deploy_token,
+            commands::open_at_login,
+            commands::set_open_at_login,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Voice Bridge")
         .run(|app, event| {
             if let RunEvent::Exit = event {

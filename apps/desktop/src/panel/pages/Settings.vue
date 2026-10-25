@@ -8,6 +8,7 @@ import type { AboutInfo, ApprovalState, EditorPanel, PanelStatus, PluginStatus }
 import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
+import Updates from '../components/Updates.vue'
 
 const { settings } = useSettings()
 const cli = useCli()
@@ -88,6 +89,17 @@ async function copyApproval(): Promise<void> {
 
 const error = ref<string | null>(null)
 const confirmingClear = ref(false)
+
+const openAtLogin = ref<boolean | null>(null)
+api.openAtLogin().then(v => (openAtLogin.value = v))
+async function setOpenAtLogin(enabled: boolean): Promise<void> {
+    error.value = null
+    try {
+        openAtLogin.value = await api.setOpenAtLogin(enabled)
+    } catch (err) {
+        error.value = api.isUiError(err) ? err.message : String(err)
+    }
+}
 const cleared = ref(false)
 
 async function patch(change: object): Promise<void> {
@@ -127,6 +139,9 @@ async function clearAll(): Promise<void> {
                     label="Show the overlay at launch"
                     @update:model-value="v => patch({ overlay: { visibleAtLaunch: v } })"
                 />
+            </SettingRow>
+            <SettingRow v-if="openAtLogin !== null" label="Open at login">
+                <Toggle :model-value="openAtLogin" label="Open at login" @update:model-value="setOpenAtLogin" />
             </SettingRow>
         </Card>
 
@@ -217,6 +232,7 @@ async function clearAll(): Promise<void> {
                 <span class="dim">{{ info ? (stable ? 'Stable' : 'Dev build') : '' }}</span>
             </SettingRow>
             <SettingRow label="Commit"><span class="dim">{{ info?.commit }}</span></SettingRow>
+            <Updates v-if="stable" />
             <SettingRow label="Hub port">
                 <span class="dim">{{ hub.running.value ? (hub.port.value ?? '…') : 'not running' }}</span>
             </SettingRow>

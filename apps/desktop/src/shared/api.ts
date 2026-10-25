@@ -17,6 +17,7 @@ import type {
     Settings,
     TargetChanged,
     UiError,
+    UpdateStatus,
 } from './types'
 
 export type { UnlistenFn }
@@ -59,6 +60,12 @@ export const pluginStatus = () => call<PluginStatus>('plugin_status')
 export const panelStatus = () => call<PanelStatus>('panel_status')
 export const about = () => call<AboutInfo>('about')
 export const revealDataFolder = () => call<void>('reveal_data_folder')
+export const updateStatus = () => call<UpdateStatus | null>('update_status')
+export const checkForUpdates = () => call<UpdateStatus>('check_for_updates')
+export const installUpdate = () => call<void>('install_update')
+export const saveDeployToken = (token: string | null) => call<UpdateStatus>('save_deploy_token', { token })
+export const openAtLogin = () => call<boolean | null>('open_at_login')
+export const setOpenAtLogin = (enabled: boolean) => call<boolean>('set_open_at_login', { enabled })
 export const openPanel = (route?: string) => call<void>('open_panel', { route: route ?? null })
 
 export const onSessionsChanged = (cb: (sessions: SessionView[]) => void) => on('sessions-changed', cb)
@@ -68,4 +75,5 @@ export const onMessageUpdated = (cb: (payload: MessageUpdated) => void) => on('m
 export const onSettingsChanged = (cb: (settings: Settings) => void) => on('settings-changed', cb)
 export const onOverlayVisibility = (cb: (payload: OverlayVisibility) => void) => on('overlay-visibility', cb)
 export const onHubState = (cb: (payload: HubState) => void) => on('hub-state', cb)
+export const onUpdateStatus = (cb: (status: UpdateStatus) => void) => on('update-status', cb)
 export const onPanelNavigate = (cb: (route: string) => void) => on('panel-navigate', cb)

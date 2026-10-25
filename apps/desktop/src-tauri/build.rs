@@ -21,6 +21,12 @@ const COMMANDS: &[&str] = &[
     "panel_status",
     "about",
     "reveal_data_folder",
+    "update_status",
+    "check_for_updates",
+    "install_update",
+    "save_deploy_token",
+    "open_at_login",
+    "set_open_at_login",
 ];
 
 fn git(args: &[&str]) -> Option<String> {

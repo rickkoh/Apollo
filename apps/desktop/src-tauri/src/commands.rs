@@ -6,12 +6,14 @@ use ts_rs::TS;
 
 use crate::channel::Channel;
 use crate::cli::{self, CliStatus, Launcher, Route};
-use crate::error::UiError;
+use crate::error::{UiError, UiErrorCode};
 use crate::events::{self, SETTINGS_CHANGED};
+use crate::macos;
 use crate::panel::{PanelLauncher, PanelStatus};
 use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
 use crate::settings::Settings;
 use crate::state::AppState;
+use crate::updates::{UpdateStatus, Updates};
 use crate::windows::{overlay, panel};
 
 type CommandResult<T> = Result<T, UiError>;
@@ -192,6 +194,60 @@ pub fn about(app: AppHandle, state: State<'_, AppState>) -> AboutInfo {
         commit: env!("GIT_COMMIT").into(),
         data_dir: state.paths.data.to_string_lossy().into_owned(),
     }
+}
+
+fn updates(state: &AppState) -> CommandResult<&Updates> {
+    state
+        .updates
+        .as_ref()
+        .ok_or_else(|| UiError::internal("Apollo Dev doesn't update"))
+}
+
+/// `None` in Apollo Dev, which never updates.
+#[tauri::command]
+pub fn update_status(state: State<'_, AppState>) -> Option<UpdateStatus> {
+    state.updates.as_ref().map(Updates::status)
+}
+
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle, state: State<'_, AppState>) -> CommandResult<UpdateStatus> {
+    Ok(updates(&state)?.check(&app).await)
+}
+
+/// Relaunches on success, so it returns only on failure.
+#[tauri::command]
+pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
+    updates(&state)?.install(&app).await.map_err(UiError::internal)
+}
+
+/// Saves the deploy token to the Keychain (`None` removes it), then checks.
+#[tauri::command]
+pub async fn save_deploy_token(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    token: Option<String>,
+) -> CommandResult<UpdateStatus> {
+    let updates = updates(&state)?;
+    let status = updates
+        .save_token(&app, token.as_deref())
+        .map_err(|message| UiError::new(UiErrorCode::InvalidSettings, message))?;
+    Ok(if status.token {
+        updates.check(&app).await
+    } else {
+        status
+    })
+}
+
+/// `None` in Apollo Dev, which doesn't offer it (D76).
+#[tauri::command]
+pub fn open_at_login(state: State<'_, AppState>) -> Option<bool> {
+    (state.channel == Channel::Stable).then(macos::opens_at_login)
+}
+
+#[tauri::command]
+pub fn set_open_at_login(enabled: bool) -> CommandResult<bool> {
+    macos::set_opens_at_login(enabled).map_err(UiError::internal)?;
+    Ok(macos::opens_at_login())
 }
 
 #[tauri::command]

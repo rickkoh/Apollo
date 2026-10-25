@@ -53,6 +53,20 @@ fn migrates_from_empty_and_reopens() {
 }
 
 #[test]
+fn refuses_a_database_a_newer_app_migrated() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(open(&dir));
+    let conn = rusqlite::Connection::open(dir.path().join("voice.db")).unwrap();
+    conn.pragma_update(None, "user_version", 99).unwrap();
+    drop(conn);
+    let err = SqliteStore::open(&dir.path().join("voice.db")).err().unwrap();
+    assert!(
+        matches!(err, hub::StoreError::NewerSchema { found: 99, known: 1 }),
+        "{err}"
+    );
+}
+
+#[test]
 fn history_pages_backwards_oldest_first() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = open(&dir);

@@ -16,14 +16,19 @@ hub = { path = "../../../crates/hub" }
 log = "0.4"
 objc2 = "0.6"
 objc2-app-kit = "0.3"
+objc2-foundation = "0.3"
+objc2-service-management = "0.3"
+security-framework = "3.7"
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-nspanel = "2.1.1"
 tauri-plugin-log = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2.14"
 thiserror.workspace = true
 time.workspace = true
+tokio.workspace = true
 tracing = { workspace = true, features = ["log"] }
 ts-rs.workspace = true
 

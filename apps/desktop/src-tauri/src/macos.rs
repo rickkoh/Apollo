@@ -1,6 +1,10 @@
-//! Native window settings Tauri doesn't expose (PLAN.md D20, D35, §9.4).
+//! Native calls Tauri doesn't expose: window settings (PLAN.md D20, D35, §9.4), a startup alert (D59) and Login Items
+//! (D76).
 
-use objc2_app_kit::{NSStatusWindowLevel, NSWindowCollectionBehavior, NSWindowStyleMask};
+use objc2::MainThreadMarker;
+use objc2_app_kit::{NSAlert, NSStatusWindowLevel, NSWindowCollectionBehavior, NSWindowStyleMask};
+use objc2_foundation::NSString;
+use objc2_service_management::{SMAppService, SMAppServiceStatus};
 use tauri::WebviewWindow;
 use tauri_nspanel::WebviewWindowExt;
 
@@ -37,4 +41,32 @@ pub fn float_over_full_screen(window: &WebviewWindow) -> tauri::Result<()> {
     panel.set_level(NSStatusWindowLevel as i64);
     panel.set_hides_on_deactivate(false);
     Ok(())
+}
+
+/// A modal alert, for a failure the app cannot start past. Main thread only.
+pub fn alert(message: &str, detail: &str) {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let alert = NSAlert::new(mtm);
+    alert.setMessageText(&NSString::from_str(message));
+    alert.setInformativeText(&NSString::from_str(detail));
+    alert.runModal();
+}
+
+/// Whether macOS opens this app at login.
+pub fn opens_at_login() -> bool {
+    unsafe { SMAppService::mainAppService().status() == SMAppServiceStatus::Enabled }
+}
+
+pub fn set_opens_at_login(enabled: bool) -> Result<(), String> {
+    let service = unsafe { SMAppService::mainAppService() };
+    let result = unsafe {
+        if enabled {
+            service.registerAndReturnError()
+        } else {
+            service.unregisterAndReturnError()
+        }
+    };
+    result.map_err(|err| err.localizedDescription().to_string())
 }

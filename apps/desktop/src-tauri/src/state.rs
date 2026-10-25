@@ -6,6 +6,7 @@ use hub::{HubHandle, RunningHub};
 use crate::channel::Channel;
 use crate::error::UiError;
 use crate::settings::SettingsService;
+use crate::updates::Updates;
 
 pub struct AppPaths {
     pub data: PathBuf,
@@ -23,15 +24,24 @@ pub struct AppState {
     pub channel: Channel,
     pub paths: AppPaths,
     pub settings: SettingsService,
+    /// Stable only: Apollo Dev never updates (D56).
+    pub updates: Option<Updates>,
     hub: Mutex<Option<RunningHub>>,
 }
 
 impl AppState {
-    pub fn new(channel: Channel, paths: AppPaths, settings: SettingsService, hub: RunningHub) -> Self {
+    pub fn new(
+        channel: Channel,
+        paths: AppPaths,
+        settings: SettingsService,
+        updates: Option<Updates>,
+        hub: RunningHub,
+    ) -> Self {
         Self {
             channel,
             paths,
             settings,
+            updates,
             hub: Mutex::new(Some(hub)),
         }
     }

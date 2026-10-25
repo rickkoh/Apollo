@@ -50,6 +50,10 @@ impl SqliteStore {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let applied: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        let known = MIGRATIONS.len() as i64;
+        if applied > known {
+            return Err(StoreError::NewerSchema { found: applied, known });
+        }
         for (index, sql) in (0i64..).zip(MIGRATIONS).skip(applied as usize) {
             let tx = conn.transaction()?;
             tx.execute_batch(sql)?;

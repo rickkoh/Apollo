@@ -12,6 +12,7 @@ pub const MESSAGE_UPDATED: &str = "message-updated";
 pub const SETTINGS_CHANGED: &str = "settings-changed";
 pub const OVERLAY_VISIBILITY: &str = "overlay-visibility";
 pub const HUB_STATE: &str = "hub-state";
+pub const UPDATE_STATUS: &str = "update-status";
 
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
