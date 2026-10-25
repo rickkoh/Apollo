@@ -1,6 +1,7 @@
 // The only module that talks to Tauri: one function per command, one `on…` per event.
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import * as path from '@tauri-apps/api/path'
 import type {
     AboutInfo,
     CliStatus,
@@ -70,6 +71,7 @@ export const installUpdate = () => call<void>('install_update')
 export const openAtLogin = () => call<boolean | null>('open_at_login')
 export const setOpenAtLogin = (enabled: boolean) => call<boolean>('set_open_at_login', { enabled })
 export const openPanel = (route?: string) => call<void>('open_panel', { route: route ?? null })
+export const homeDir = () => path.homeDir()
 
 export const onSessionsChanged = (cb: (sessions: SessionView[]) => void) => on('sessions-changed', cb)
 export const onTargetChanged = (cb: (payload: TargetChanged) => void) => on('target-changed', cb)

@@ -2,22 +2,28 @@
 import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import * as api from '../../shared/api'
+import Icon from '../../shared/components/Icon.vue'
 import StatusDot from '../../shared/components/StatusDot.vue'
 import { useSessions } from '../../shared/composables/useSessions'
-import { relative } from '../../shared/format'
+import { homeRelative, relative } from '../../shared/format'
 import type { SessionId, SessionView } from '../../shared/types'
+import Card from '../components/Card.vue'
 
 const router = useRouter()
 const { sessions } = useSessions()
 const rows = computed(() => [...sessions.value].sort((a, b) => Number(b.live) - Number(a.live)))
 const command = ref('cv')
 api.about().then(info => (command.value = info.command))
+const home = ref<string | null>(null)
+api.homeDir().then(dir => (home.value = dir))
 
 const editing = ref<SessionId | null>(null)
 const draft = ref('')
 const confirming = ref<SessionId | null>(null)
 const error = ref<string | null>(null)
 const input = ref<HTMLInputElement[]>([])
+
+const detail = (id: SessionId) => `/sessions/${encodeURIComponent(id)}`
 
 async function run(action: () => Promise<void>): Promise<void> {
     error.value = null
@@ -55,125 +61,216 @@ function forget(id: SessionId): Promise<void> {
 <template>
     <h1>Sessions</h1>
     <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="rows.length === 0" class="dim">Start a session with <code>{{ command }}</code> in any terminal, Cursor's included.</p>
-    <table v-else>
-        <thead>
-            <tr>
-                <th scope="col">Session</th>
-                <th scope="col">Folder</th>
-                <th scope="col">Last activity</th>
-                <th scope="col">Unread</th>
-                <th scope="col"><span class="visually-hidden">Actions</span></th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="s in rows" :key="s.id" @click="router.push(`/sessions/${encodeURIComponent(s.id)}`)">
-                <td class="title">
-                    <StatusDot :state="s.live ? 'live' : 'offline'" />
-                    <input
-                        v-if="editing === s.id"
-                        ref="input"
-                        v-model="draft"
-                        aria-label="Session name"
-                        @click.stop
-                        @keydown.enter="saveRename(s)"
-                        @keydown.esc="editing = null"
-                        @blur="saveRename(s)"
-                    />
-                    <span v-else>{{ s.title }}</span>
-                    <span v-if="s.isTarget" class="badge">target</span>
-                </td>
-                <td class="dim folder" :title="s.cwd">{{ s.cwd }}</td>
-                <td class="dim">{{ s.live ? 'live' : relative(s.lastActivity) }}</td>
-                <td>{{ s.unread || '' }}</td>
-                <td class="actions" @click.stop>
-                    <button v-if="s.live && !s.isTarget" class="button" type="button" @click="makeTarget(s.id)">
-                        Set as target
-                    </button>
-                    <button class="button" type="button" @click="startRename(s)">Rename</button>
-                    <template v-if="!s.live">
-                        <button v-if="confirming === s.id" class="button danger" type="button" @click="forget(s.id)">
-                            Forget history?
-                        </button>
-                        <button v-else class="button" type="button" @click="confirming = s.id">Forget</button>
-                    </template>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+    <Card v-if="rows.length === 0">
+        <p class="dim empty">Start a session with <code>{{ command }}</code> in any terminal, Cursor's included.</p>
+    </Card>
+    <div v-else class="table">
+        <table>
+            <colgroup>
+                <col class="session" />
+                <col />
+                <col class="activity" />
+                <col class="actions" />
+            </colgroup>
+            <thead>
+                <tr>
+                    <th scope="col">Session</th>
+                    <th scope="col">Folder</th>
+                    <th scope="col">Last activity</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="s in rows" :key="s.id" @click="router.push(detail(s.id))">
+                    <td>
+                        <div class="title">
+                            <StatusDot :state="s.live ? 'live' : 'offline'" />
+                            <input
+                                v-if="editing === s.id"
+                                ref="input"
+                                v-model="draft"
+                                aria-label="Session name"
+                                @click.stop
+                                @keydown.enter="saveRename(s)"
+                                @keydown.esc="editing = null"
+                                @blur="saveRename(s)"
+                            />
+                            <RouterLink v-else :to="detail(s.id)" class="name" :title="s.title" @click.stop>{{ s.title }}</RouterLink>
+                            <span v-if="s.unread" class="pill" :title="`${s.unread} unread`">{{ s.unread }}</span>
+                            <span v-if="s.isTarget" class="badge">Target</span>
+                        </div>
+                    </td>
+                    <td class="dim">
+                        <div class="folder" :title="s.cwd"><bdi>{{ homeRelative(s.cwd, home) }}</bdi></div>
+                    </td>
+                    <td class="dim">
+                        <template v-if="s.live">{{ s.activity === 'busy' ? 'Working' : 'Live' }}</template>
+                        <template v-else>{{ relative(s.lastActivity) }}</template>
+                    </td>
+                    <td @click.stop>
+                        <div v-if="confirming === s.id" class="confirm">
+                            <button class="button danger small" type="button" @click="forget(s.id)">Forget</button>
+                            <button class="icon-button" type="button" aria-label="Keep" title="Keep" @click="confirming = null">
+                                <Icon name="close" />
+                            </button>
+                        </div>
+                        <div v-else class="row-actions">
+                            <button
+                                v-if="s.live && !s.isTarget"
+                                class="icon-button slot-target"
+                                type="button"
+                                aria-label="Set as target"
+                                title="Set as target"
+                                @click="makeTarget(s.id)"
+                            >
+                                <Icon name="target" />
+                            </button>
+                            <button
+                                class="icon-button slot-rename"
+                                type="button"
+                                aria-label="Rename"
+                                title="Rename"
+                                @click="startRename(s)"
+                            >
+                                <Icon name="rename" />
+                            </button>
+                            <button
+                                v-if="!s.live"
+                                class="icon-button slot-forget"
+                                type="button"
+                                aria-label="Forget history"
+                                title="Forget history"
+                                @click="confirming = s.id"
+                            >
+                                <Icon name="forget" />
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </template>
 
 <style scoped>
-table {
-    width: 100%;
-    border-collapse: collapse;
+.table {
     background: var(--card-bg);
     border: 1px solid var(--island-border);
     border-radius: var(--radius-card);
     overflow: hidden;
 }
+table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+col.session {
+    width: 38%;
+}
+col.activity {
+    width: 104px;
+}
+col.actions {
+    width: 116px;
+}
 th {
-    padding: 10px 14px;
+    padding: 12px 14px;
     text-align: left;
     font-size: 12px;
     font-weight: 500;
+    white-space: nowrap;
     color: var(--text-dim);
-    border-bottom: 1px solid var(--island-border);
 }
 td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--island-border);
+    height: 52px;
+    padding: 0 14px;
+    border-top: 1px solid var(--island-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 tbody tr {
     cursor: pointer;
+    transition: background var(--motion);
 }
 tbody tr:hover {
     background: var(--hover);
 }
-tbody tr:last-child td {
-    border-bottom: 0;
-}
 .title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 500;
+    gap: 10px;
+    min-width: 0;
 }
-.folder {
-    max-width: 220px;
+.name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+}
+.badge {
+    flex: none;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: var(--control);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+}
+.folder {
+    overflow: hidden;
+    text-overflow: ellipsis;
     direction: rtl;
     text-align: left;
 }
-.badge {
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: var(--hover);
+.pill {
+    flex: none;
+    min-width: 20px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
     font-size: 11px;
-    font-weight: 400;
-    color: var(--text-dim);
+    font-weight: 600;
+    text-align: center;
 }
-.actions {
+.row-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 28px);
+    justify-content: end;
+    gap: 2px;
+}
+.slot-target {
+    grid-column: 1;
+}
+.slot-rename {
+    grid-column: 2;
+}
+.slot-forget {
+    grid-column: 3;
+}
+.confirm {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
-    gap: 6px;
-    white-space: nowrap;
+    gap: 2px;
 }
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+.button.small {
+    padding: 5px 10px;
+    font-size: 13px;
 }
 input {
-    font: inherit;
-    padding: 2px 6px;
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
     border: 1px solid var(--island-border);
     border-radius: 6px;
-    background: var(--panel-bg);
-    color: var(--text);
+    background: var(--surface);
+}
+.empty {
+    margin: 0;
 }
 </style>

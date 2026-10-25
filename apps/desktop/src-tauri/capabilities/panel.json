@@ -30,6 +30,7 @@
     "allow-install-update",
     "allow-open-at-login",
     "allow-set-open-at-login",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:path:allow-resolve-directory"
   ]
 }

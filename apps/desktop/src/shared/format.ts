@@ -28,6 +28,10 @@ export function withinHours(iso: string | null, hours: number, now = Date.now())
     return iso !== null && now - new Date(iso).getTime() <= hours * 3_600_000
 }
 
+export function homeRelative(path: string, home: string | null): string {
+    return home && (path === home || path.startsWith(`${home}/`)) ? `~${path.slice(home.length)}` : path
+}
+
 export function truncate(text: string, max: number): string {
     return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
