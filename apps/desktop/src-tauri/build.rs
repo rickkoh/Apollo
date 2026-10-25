@@ -23,7 +23,29 @@ const COMMANDS: &[&str] = &[
     "reveal_data_folder",
 ];
 
+fn git(args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new("git").args(args).output().ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+/// The commit About shows; rebuilt when `HEAD` or the branch it names moves.
+fn commit() -> String {
+    let refs = ["HEAD".to_owned()]
+        .into_iter()
+        .chain(git(&["symbolic-ref", "-q", "HEAD"]));
+    for name in refs {
+        if let Some(path) = git(&["rev-parse", "--path-format=absolute", "--git-path", &name]) {
+            println!("cargo:rerun-if-changed={path}");
+        }
+    }
+    git(&["rev-parse", "--short", "HEAD"]).unwrap_or_else(|| "unknown".into())
+}
+
 fn main() {
+    println!("cargo:rustc-env=GIT_COMMIT={}", commit());
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMMANDS)),
     )

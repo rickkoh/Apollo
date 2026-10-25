@@ -23,7 +23,8 @@ question (`Q`) there.
 - The app keeps a standard Edit menu with Paste; Wispr Flow pastes with ⌘V.
 - The channel's stdout is the MCP transport; log to stderr only.
 - The hub binds 127.0.0.1 only, and every channel must present the token from the discovery file.
-- Voice sessions are terminal sessions started with `cv` (or `bin/cv-dev`); IDE panels never receive channel events.
+- Voice sessions are terminal sessions started with `cv` (or Apollo Dev's `cv-dev`); IDE panels never receive channel
+  events.
 
 ## Environment
 

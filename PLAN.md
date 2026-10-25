@@ -50,7 +50,7 @@ Record every new decision and question here.
 - **D7 The overlay and control panel are one Tauri v2 app.**
 - **D8 The plugin loads per session with `--plugin-dir`, never installed.** Its channel is `plugin:voice@inline` in
   the flag, so the launcher is the only way in and no other session runs the channel. Phase 5 moved `cv` to the
-  installed plugin (D44); `bin/cv-dev` keeps this route.
+  installed plugin (D44); Apollo Dev's `cv-dev` keeps this route (D75).
 - **D9 A channel identifies its session from `CLAUDE_CODE_SESSION_ID` and `CLAUDE_PROJECT_DIR`,** which Claude Code
   sets on MCP server processes (observed, not documented).
 - **D10 The hub is a Rust library crate that runs inside the Tauri app.** One process, no sidecar to supervise and no
@@ -128,7 +128,7 @@ Record every new decision and question here.
   organization login the admin decides (Q1).
 - **D46 `cv` takes the approved route only when the approval file holds our entry as the approval command writes
   it** (a fixed-string `grep`), and the development flag otherwise, so a hand-edited or foreign file falls back to the
-  dialog. `bin/cv-dev` always uses the development flag.
+  dialog. `cv-dev` always uses the development flag.
 - **D47 Voice reaches terminal sessions through `cv`,** Cursor's integrated terminal included, and IDE panel sessions
   through the panel bridge (D67).
 - **D48 Cross-session messaging is not a delivery path.** Receivers treat peer messages as information, not user
@@ -210,6 +210,14 @@ Record every new decision and question here.
   app.
 - **D76 The stable app can open at login:** Settings → General, off by default, through macOS Login Items
   (`tauri-plugin-autostart`). Apollo Dev doesn't offer it. Moved from phase 7.
+- **D77 The channel comes from the bundle identifier** (`Channel`, `.dev` suffix), and a debug build under the stable
+  identifier refuses to start: `tauri dev` without the dev config would otherwise share the stable app's data and
+  overwrite its `cv` and marketplace. Apollo Dev starts with `npm --prefix apps/desktop run app`.
+- **D78 Every launcher (`cv`, `cv-dev`, `cv-panel`) sets `VOICE_BRIDGE_DISCOVERY` to its app's `hub.json` unless it is
+  already set,** right after the marker, so a session reaches the app that installed its launcher and `hub-dev` can
+  still be pointed at by hand.
+- **D79 Menus, the menu bar item and window titles take the app name from `productName`,** so Apollo Dev names itself
+  and the rename changes only the config for them.
 
 ## 3. Architecture
 
@@ -288,12 +296,13 @@ voice-bridge/
     overlay.html, panel.html      Vite entry pages
     src/shared/ src/overlay/ src/panel/
     src-tauri/
-      Cargo.toml, build.rs, tauri.conf.json
+      Cargo.toml, build.rs, tauri.conf.json, tauri.dev.conf.json (Apollo Dev, D52)
       capabilities/overlay.json, capabilities/panel.json
       icons/
       src/main.rs                 calls lib::run
       src/lib.rs                  composition root
-      src/state.rs                AppState (HubHandle, Settings)
+      src/state.rs                AppState (channel, HubHandle, Settings)
+      src/channel.rs              Stable or Dev, from the bundle identifier (D77)
       src/settings.rs             Settings service
       src/commands.rs             Tauri commands
       src/events.rs               HubEvents → Tauri emitter
@@ -314,7 +323,9 @@ voice-bridge/
     src/bridge.ts src/bridge-main.ts   the panel bridge (§24)
     test/
     dist/channel.js, dist/panel-bridge.js   build output (git-ignored; bundled into the app)
-  bin/cv-dev                      launcher pointing at plugin/voice, for development
+  cliff.toml, CHANGELOG.md        changelog config and its output (D73)
+  scripts/release.sh              release checks and the release itself (D74, §23.2)
+  .claude/skills/release/         the release skill (D60)
 ```
 
 ## 5. Hub crate
@@ -606,8 +617,9 @@ with `--channels` when the approval file holds our entry and the development fla
 
 - The marker line identifies the app's own file. Installing refuses to overwrite a `cv` without it, and reports when
   `~/.local/bin` is not on `PATH`.
-- `bin/cv-dev` in the repo loads `plugin/voice` with `--plugin-dir` and the development flag
-  (`plugin:voice@inline`), for working on the channel.
+- Apollo Dev installs `cv-dev` instead (D75): this checkout's `plugin/voice` with `--plugin-dir` and the development
+  flag (`plugin:voice@inline`), for working on the channel.
+- Every launcher sets the discovery variable to its app's `hub.json` unless it is already set (D78).
 
 ## 8. Persistence
 
@@ -762,7 +774,7 @@ non-activating style (directly or through `tauri-nspanel`) and keeps the same co
 | `recent_messages` | `limit` | `Message[]` | panel |
 | `clear_history` | | `()` | panel |
 | `overlay_visible` / `set_overlay_visible` | / `visible` | `boolean` / `()` | panel |
-| `about` | | `AboutInfo { version, dataDir }` | panel |
+| `about` | | `AboutInfo { version, channel, commit, dataDir }` | both |
 | `reveal_data_folder` | | `()` | panel |
 
 Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_target`, `target_offline`,
@@ -1017,8 +1029,8 @@ Prerequisites: Xcode command-line tools; Rust from Homebrew's `rustup` (add `/op
 | Lint | `cargo fmt --check && cargo clippy --workspace -- -D warnings` |
 | Headless hub | `cargo run -p hub --bin hub-dev -- --data /tmp/vb --discovery /tmp/vb/hub.json` |
 | Channel | `npm --prefix plugin/voice run build`, `… run test`, `… run typecheck` |
-| Dev voice session | `VOICE_BRIDGE_DISCOVERY=/tmp/vb/hub.json bin/cv-dev` in a terminal |
-| App | `npm --prefix apps/desktop run tauri dev` |
+| Dev voice session | `VOICE_BRIDGE_DISCOVERY=/tmp/vb/hub.json cv-dev` in a terminal |
+| App (Apollo Dev) | `npm --prefix apps/desktop run app` |
 | UI type check | `npm --prefix apps/desktop run typecheck` |
 
 ## 15. Phases
@@ -1366,8 +1378,8 @@ exec claude --settings '{"enabledPlugins":{"voice@voice-bridge":true}}' --danger
 - Both branches load the same plugin, so a session never runs two voice channels.
 - The marker stays on line 2; `upToDate` compares the whole script.
 - A user's own `cv --settings …` replaces ours and drops the plugin.
-- `bin/cv-dev` keeps `--plugin-dir` and the development flag: it runs the working copy, and the installed plugin is
-  disabled, so nothing loads twice.
+- Apollo Dev's `cv-dev` keeps `--plugin-dir` and the development flag: it runs the working copy, and the installed
+  plugin is disabled, so nothing loads twice.
 
 **Marketplace and installer (D66):**
 

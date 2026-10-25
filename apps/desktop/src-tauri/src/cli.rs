@@ -1,4 +1,4 @@
-//! The `cv` launcher the app installs into `~/.local/bin` (PLAN.md D18, §7.6, §22.2).
+//! The `cv` (or Apollo Dev's `cv-dev`) launcher the app installs into `~/.local/bin` (PLAN.md D18, §7.6, §22.2, D75).
 
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
@@ -18,7 +18,8 @@ pub const PLUGIN_ID: &str = "voice@voice-bridge";
 const CHANNEL: &str = "plugin:voice@voice-bridge";
 /// Our `allowedChannelPlugins` entry exactly as the approval command writes it; the launcher greps for this text.
 const APPROVAL_ENTRY: &str = r#"{"marketplace":"voice-bridge","plugin":"voice"}"#;
-const COMMAND: &str = "cv";
+/// The variable every launcher sets to its app's discovery file, unless it is already set (D52).
+pub const DISCOVERY_VAR: &str = "VOICE_BRIDGE_DISCOVERY";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "snake_case")]
@@ -37,6 +38,8 @@ pub enum ApprovalState {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct CliStatus {
+    /// `cv`, or `cv-dev` for Apollo Dev.
+    pub command: String,
     /// Our launcher is at `path`.
     pub installed: bool,
     /// It is this app's launcher script; false means a reinstall is due.
@@ -65,18 +68,52 @@ pub(crate) fn single_quoted(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', r"'\''"))
 }
 
-/// Both branches load the same installed plugin; only an approval file holding our entry skips the dialog.
-pub fn script(approval_path: &Path) -> String {
-    let plugin = format!("--settings '{{\"enabledPlugins\":{{\"{PLUGIN_ID}\":true}}}}'");
+/// A launcher's first lines: the marker, then its app's discovery file.
+pub(crate) fn header(discovery: &Path) -> String {
     format!(
         "#!/bin/sh\n\
          {MARKER}\n\
-         if grep -qF '{APPROVAL_ENTRY}' {approval} 2>/dev/null; then\n    \
-         exec claude {plugin} --channels {CHANNEL} \"$@\"\n\
-         fi\n\
-         exec claude {plugin} --dangerously-load-development-channels {CHANNEL} \"$@\"\n",
-        approval = single_quoted(approval_path),
+         [ -n \"${DISCOVERY_VAR}\" ] || {DISCOVERY_VAR}={}\n\
+         export {DISCOVERY_VAR}\n",
+        single_quoted(discovery)
     )
+}
+
+/// The plugin a launcher starts claude with.
+pub enum Route {
+    /// The installed plugin (D44); only an approval file holding our entry skips the dialog.
+    Installed,
+    /// The working copy's `plugin/voice` with the development flag (D75).
+    WorkingCopy { plugin_dir: PathBuf },
+}
+
+impl Route {
+    fn command(&self) -> &'static str {
+        match self {
+            Route::Installed => "cv",
+            Route::WorkingCopy { .. } => "cv-dev",
+        }
+    }
+}
+
+pub fn script(route: &Route, approval_path: &Path, discovery: &Path) -> String {
+    let body = match route {
+        Route::Installed => {
+            let plugin = format!("--settings '{{\"enabledPlugins\":{{\"{PLUGIN_ID}\":true}}}}'");
+            format!(
+                "if grep -qF '{APPROVAL_ENTRY}' {approval} 2>/dev/null; then\n    \
+                 exec claude {plugin} --channels {CHANNEL} \"$@\"\n\
+                 fi\n\
+                 exec claude {plugin} --dangerously-load-development-channels {CHANNEL} \"$@\"\n",
+                approval = single_quoted(approval_path),
+            )
+        }
+        Route::WorkingCopy { plugin_dir } => format!(
+            "exec claude --plugin-dir {} --dangerously-load-development-channels plugin:voice@inline \"$@\"\n",
+            single_quoted(plugin_dir)
+        ),
+    };
+    header(discovery) + &body
 }
 
 fn approval_json() -> String {
@@ -175,19 +212,26 @@ impl OurScript {
 pub struct Launcher {
     pub bin_dir: PathBuf,
     pub approval_path: PathBuf,
+    pub discovery: PathBuf,
+    pub route: Route,
 }
 
 impl Launcher {
+    fn script(&self) -> String {
+        script(&self.route, &self.approval_path, &self.discovery)
+    }
+
     fn file(&self) -> OurScript {
         OurScript {
-            target: self.bin_dir.join(COMMAND),
+            target: self.bin_dir.join(self.route.command()),
         }
     }
 
     pub fn status(&self, path_env: Option<&OsStr>) -> CliStatus {
         let file = self.file();
-        let state = file.state(&script(&self.approval_path));
+        let state = file.state(&self.script());
         CliStatus {
+            command: self.route.command().into(),
             installed: state.installed,
             up_to_date: state.up_to_date,
             path: file.target.to_string_lossy().into_owned(),
@@ -200,9 +244,15 @@ impl Launcher {
 
     /// Writes or rewrites our launcher; never overwrites a file without the marker.
     pub fn install(&self, path_env: Option<&OsStr>) -> Result<CliStatus, CliError> {
-        self.file().write(&script(&self.approval_path))?;
+        self.file().write(&self.script())?;
         Ok(self.status(path_env))
     }
+}
+
+/// This checkout's `plugin/voice`, which Apollo Dev's `cv-dev` loads (D75).
+pub fn working_copy_plugin() -> PathBuf {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../plugin/voice");
+    dir.canonicalize().unwrap_or(dir)
 }
 
 /// `name` as the user's login shell sets it; a GUI app's own environment lacks what shell profiles add.
@@ -234,13 +284,19 @@ mod tests {
         launcher: Launcher,
     }
 
-    fn fixture() -> Fixture {
+    fn fixture_with(route: Route) -> Fixture {
         let dir = tempfile::tempdir().unwrap();
         let launcher = Launcher {
             bin_dir: dir.path().join("bin"),
             approval_path: dir.path().join("ClaudeCode/managed-settings.d/voice-bridge.json"),
+            discovery: dir.path().join("data/hub.json"),
+            route,
         };
         Fixture { dir, launcher }
+    }
+
+    fn fixture() -> Fixture {
+        fixture_with(Route::Installed)
     }
 
     impl Fixture {
@@ -257,22 +313,30 @@ mod tests {
             approval_state(&self.launcher.approval_path)
         }
 
-        /// Runs the installed `cv` with a stub `claude` that records its arguments.
-        fn run_cv(&self) -> Vec<String> {
+        /// Runs the installed launcher with a stub `claude` that records the discovery variable, then its arguments.
+        fn run(&self, discovery: Option<&str>) -> Vec<String> {
             let stub = self.dir.path().join("stub");
             fs::create_dir_all(&stub).unwrap();
             let claude = stub.join("claude");
-            fs::write(&claude, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGV_OUT\"\n").unwrap();
+            let record = format!("#!/bin/sh\nprintf '%s\\n' \"${DISCOVERY_VAR}\" \"$@\" > \"$ARGV_OUT\"\n");
+            fs::write(&claude, record).unwrap();
             fs::set_permissions(&claude, fs::Permissions::from_mode(0o755)).unwrap();
             let out = self.dir.path().join("argv");
-            let status = std::process::Command::new(self.launcher.bin_dir.join("cv"))
+            let mut command = std::process::Command::new(self.launcher.bin_dir.join(self.launcher.route.command()));
+            command
                 .args(["--resume", "it's"])
                 .env("PATH", format!("{}:/usr/bin:/bin", stub.display()))
                 .env("ARGV_OUT", &out)
-                .status()
-                .unwrap();
-            assert!(status.success());
+                .env_remove(DISCOVERY_VAR);
+            if let Some(discovery) = discovery {
+                command.env(DISCOVERY_VAR, discovery);
+            }
+            assert!(command.status().unwrap().success());
             fs::read_to_string(out).unwrap().lines().map(str::to_owned).collect()
+        }
+
+        fn run_cv(&self) -> Vec<String> {
+            self.run(None).split_off(1)
         }
     }
 
@@ -290,10 +354,46 @@ mod tests {
     }
 
     #[test]
-    fn the_script_carries_the_marker_and_a_quoted_approval_path() {
-        let text = script(Path::new("/a/it's here/voice-bridge.json"));
+    fn the_script_carries_the_marker_and_quoted_paths() {
+        let text = script(
+            &Route::Installed,
+            Path::new("/a/it's here/voice-bridge.json"),
+            Path::new("/d/it's/hub.json"),
+        );
         assert!(text.starts_with("#!/bin/sh\n# voice-bridge launcher\n"));
         assert!(text.contains(r"'/a/it'\''s here/voice-bridge.json'"));
+        assert!(text.contains(r"'/d/it'\''s/hub.json'"));
+    }
+
+    #[test]
+    fn a_launcher_points_its_session_at_its_apps_hub_unless_one_is_set() {
+        let f = fixture();
+        f.launcher.install(None).unwrap();
+        assert_eq!(f.run(None)[0], f.launcher.discovery.to_string_lossy());
+        assert_eq!(f.run(Some("/tmp/vb/hub.json"))[0], "/tmp/vb/hub.json");
+    }
+
+    #[test]
+    fn cv_dev_runs_the_working_copy_with_the_development_flag() {
+        let f = fixture_with(Route::WorkingCopy {
+            plugin_dir: PathBuf::from("/repo/plugin/voice"),
+        });
+        let status = f.launcher.install(None).unwrap();
+        assert_eq!(status.command, "cv-dev");
+        assert!(status.installed && status.path.ends_with("bin/cv-dev"));
+        assert!(!f.dir.path().join("bin/cv").exists());
+        assert_eq!(
+            f.run(None),
+            [
+                &f.launcher.discovery.to_string_lossy(),
+                "--plugin-dir",
+                "/repo/plugin/voice",
+                "--dangerously-load-development-channels",
+                "plugin:voice@inline",
+                "--resume",
+                "it's",
+            ]
+        );
     }
 
     #[test]

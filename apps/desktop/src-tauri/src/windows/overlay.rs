@@ -2,8 +2,10 @@ use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
+use crate::channel::Channel;
 use crate::events::{self, OVERLAY_VISIBILITY, OverlayVisibility};
 use crate::macos;
+use crate::state::AppState;
 use crate::tray;
 
 pub const LABEL: &str = "overlay";
@@ -14,7 +16,7 @@ const SCREEN_MARGIN: f64 = 16.0;
 
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("overlay.html".into()))
-        .title("Voice Bridge Overlay")
+        .title(format!("{} Overlay", app.package_info().name))
         .inner_size(WIDTH, INITIAL_HEIGHT)
         .decorations(false)
         .transparent(true)
@@ -44,20 +46,23 @@ fn current_height(window: &WebviewWindow) -> f64 {
         .map_or(INITIAL_HEIGHT, |size| size.height as f64 / scale)
 }
 
-/// Sizes the window to `height` and anchors its bottom-right corner to the primary display's work area.
+/// Sizes the window to `height` and anchors its bottom corner to the primary display's work area: bottom-right, or
+/// bottom-left for Apollo Dev (D52).
 pub fn place(window: &WebviewWindow, height: f64) -> tauri::Result<()> {
     let Some(monitor) = window.primary_monitor()? else {
         return Ok(());
     };
     let scale = monitor.scale_factor();
     let area = monitor.work_area();
+    let left = area.position.x as f64 / scale;
     let right = (area.position.x as f64 + area.size.width as f64) / scale;
     let bottom = (area.position.y as f64 + area.size.height as f64) / scale;
+    let x = match window.state::<AppState>().channel {
+        Channel::Stable => right - SCREEN_MARGIN - WIDTH,
+        Channel::Dev => left + SCREEN_MARGIN,
+    };
     window.set_size(LogicalSize::new(WIDTH, height))?;
-    window.set_position(LogicalPosition::new(
-        right - SCREEN_MARGIN - WIDTH,
-        bottom - SCREEN_MARGIN - height,
-    ))
+    window.set_position(LogicalPosition::new(x, bottom - SCREEN_MARGIN - height))
 }
 
 pub fn is_visible(app: &AppHandle) -> bool {

@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 use hub::{HubHandle, RunningHub};
 
+use crate::channel::Channel;
 use crate::error::UiError;
 use crate::settings::SettingsService;
 
@@ -19,14 +20,16 @@ pub struct AppPaths {
 
 /// Managed Tauri state: the running hub (absent once stopped) and the settings service.
 pub struct AppState {
+    pub channel: Channel,
     pub paths: AppPaths,
     pub settings: SettingsService,
     hub: Mutex<Option<RunningHub>>,
 }
 
 impl AppState {
-    pub fn new(paths: AppPaths, settings: SettingsService, hub: RunningHub) -> Self {
+    pub fn new(channel: Channel, paths: AppPaths, settings: SettingsService, hub: RunningHub) -> Self {
         Self {
+            channel,
             paths,
             settings,
             hub: Mutex::new(Some(hub)),

@@ -3,6 +3,10 @@ import type { ApprovalState } from "./ApprovalState";
 
 export type CliStatus = { 
 /**
+ * `cv`, or `cv-dev` for Apollo Dev.
+ */
+command: string, 
+/**
  * Our launcher is at `path`.
  */
 installed: boolean, 

@@ -12,6 +12,7 @@
     "allow-mark-read",
     "allow-get-settings",
     "allow-overlay-resize",
-    "allow-open-panel"
+    "allow-open-panel",
+    "allow-about"
   ]
 }

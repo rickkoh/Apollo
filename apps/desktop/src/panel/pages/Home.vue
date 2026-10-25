@@ -37,7 +37,7 @@ const groups = computed(() => {
 
 const copied = ref(false)
 async function copyCommand(): Promise<void> {
-    await navigator.clipboard.writeText('cv')
+    await navigator.clipboard.writeText(cli.status.value?.command ?? 'cv')
     copied.value = true
     setTimeout(() => (copied.value = false), 1500)
 }
@@ -65,7 +65,7 @@ async function copyCommand(): Promise<void> {
 
     <h2>Start a voice session</h2>
     <div v-if="cli.status.value?.installed" class="command">
-        <code>$ cv</code>
+        <code>$ {{ cli.status.value.command }}</code>
         <button class="button" type="button" @click="copyCommand">{{ copied ? 'Copied' : 'Copy' }}</button>
     </div>
     <div v-else class="command">

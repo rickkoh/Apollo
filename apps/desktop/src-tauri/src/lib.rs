@@ -1,3 +1,4 @@
+mod channel;
 mod cli;
 mod commands;
 mod error;
@@ -20,12 +21,17 @@ use tauri::{ActivationPolicy, AppHandle, Manager, RunEvent};
 use tauri_plugin_log::{Target, TargetKind};
 use time::{Duration, OffsetDateTime};
 
+use crate::channel::Channel;
 use crate::events::{HUB_STATE, HubState, TauriEvents};
 use crate::settings::SettingsService;
 use crate::state::{AppPaths, AppState};
 
 /// Startup, PLAN.md §3.2.
 fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let channel = Channel::of(&app.config().identifier);
+    if cfg!(debug_assertions) && channel == Channel::Stable {
+        return Err("a debug build runs as Apollo Dev, with its own data and launcher: `npm run app`".into());
+    }
     let data = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data)?;
     app.plugin(
@@ -69,7 +75,7 @@ fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     ))?;
     discovery::write(&paths.discovery, running.port, &token)?;
     let visible_at_launch = settings.get().overlay.visible_at_launch;
-    app.manage(AppState::new(paths, settings, running));
+    app.manage(AppState::new(channel, paths, settings, running));
 
     windows::overlay::create(app)?;
     windows::overlay::set_visible(app, visible_at_launch)?;

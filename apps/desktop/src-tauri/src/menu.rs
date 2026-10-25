@@ -4,14 +4,15 @@ use tauri::{AppHandle, Wry};
 /// App menu with the standard Edit menu (D23): Wispr Flow pastes with ⌘V, which macOS routes through it.
 /// The Window menu gives the panel ⌘W.
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let name = &app.package_info().name;
     let app_menu = Submenu::with_items(
         app,
-        "Voice Bridge",
+        name,
         true,
         &[
-            &PredefinedMenuItem::about(app, Some("About Voice Bridge"), Some(AboutMetadata::default()))?,
+            &PredefinedMenuItem::about(app, Some(&format!("About {name}")), Some(AboutMetadata::default()))?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some("Quit Voice Bridge"))?,
+            &PredefinedMenuItem::quit(app, Some(&format!("Quit {name}")))?,
         ],
     )?;
     let edit = Submenu::with_items(

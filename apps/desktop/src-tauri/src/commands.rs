@@ -4,7 +4,8 @@ use serde_json::Value;
 use tauri::{AppHandle, State, WebviewWindow};
 use ts_rs::TS;
 
-use crate::cli::{self, CliStatus, Launcher};
+use crate::channel::Channel;
+use crate::cli::{self, CliStatus, Launcher, Route};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
 use crate::panel::{PanelLauncher, PanelStatus};
@@ -106,6 +107,13 @@ fn launcher(state: &AppState) -> Launcher {
     Launcher {
         bin_dir: state.paths.bin.clone(),
         approval_path: cli::APPROVAL_PATH.into(),
+        discovery: state.paths.discovery.clone(),
+        route: match state.channel {
+            Channel::Stable => Route::Installed,
+            Channel::Dev => Route::WorkingCopy {
+                plugin_dir: cli::working_copy_plugin(),
+            },
+        },
     }
 }
 
@@ -113,6 +121,7 @@ fn panel_launcher(state: &AppState) -> PanelLauncher {
     PanelLauncher {
         bin_dir: state.paths.bin.clone(),
         bridge: state.paths.marketplace.join("voice/dist/panel-bridge.js"),
+        discovery: state.paths.discovery.clone(),
         app_support: state.paths.app_support.clone(),
     }
 }
@@ -131,16 +140,18 @@ pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> 
         .map_err(UiError::internal)
 }
 
-/// Installs the plugin first, so a failure leaves the previous launcher in place.
+/// Installs the plugin first, so a failure leaves the previous launcher in place. Apollo Dev installs only `cv-dev`
+/// (D75).
 #[tauri::command]
 pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
-    let panel = panel_launcher(&state);
-    let plugin = bundled_plugin(&state);
+    let stable = (state.channel == Channel::Stable).then(|| (panel_launcher(&state), bundled_plugin(&state)));
     tauri::async_runtime::spawn_blocking(move || {
         let path = cli::login_shell_var("PATH");
-        plugin.install(&ClaudeCli::new(path.clone()))?;
-        panel.install()?;
+        if let Some((panel, plugin)) = stable {
+            plugin.install(&ClaudeCli::new(path.clone()))?;
+            panel.install()?;
+        }
         launcher.install(path.as_deref())
     })
     .await
@@ -168,6 +179,8 @@ pub async fn plugin_status(state: State<'_, AppState>) -> CommandResult<PluginSt
 #[ts(export)]
 pub struct AboutInfo {
     pub version: String,
+    pub channel: Channel,
+    pub commit: String,
     pub data_dir: String,
 }
 
@@ -175,6 +188,8 @@ pub struct AboutInfo {
 pub fn about(app: AppHandle, state: State<'_, AppState>) -> AboutInfo {
     AboutInfo {
         version: app.package_info().version.to_string(),
+        channel: state.channel,
+        commit: env!("GIT_COMMIT").into(),
         data_dir: state.paths.data.to_string_lossy().into_owned(),
     }
 }

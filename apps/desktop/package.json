@@ -8,6 +8,7 @@
     "build": "npm run plugin && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit",
     "tauri": "tauri",
+    "app": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "test": "node --test \"src/**/*.test.ts\"",
     "plugin": "npm --prefix ../../plugin/voice run build"
   },

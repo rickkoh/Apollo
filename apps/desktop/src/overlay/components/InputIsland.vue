@@ -10,6 +10,7 @@ const props = defineProps<{
     otherUnread: boolean
     pickerOpen: boolean
     delivered: boolean
+    dev: boolean
 }>()
 const emit = defineEmits<{ send: [text: string]; 'toggle-picker': [] }>()
 
@@ -20,7 +21,7 @@ const MAX_LINES = 3
 const disabled = computed(() => props.status === 'hub-down' || !props.target?.live)
 const placeholder = computed(() => {
     if (props.status === 'hub-down') return "Voice Bridge isn't running its hub. Restart the app"
-    if (!props.target?.live) return "Start a session with cv in any terminal, Cursor's included"
+    if (!props.target?.live) return `Start a session with ${props.dev ? 'cv-dev' : 'cv'} in any terminal, Cursor's included`
     return 'Speak or type…'
 })
 
@@ -62,6 +63,7 @@ defineExpose({
             @click="emit('toggle-picker')"
         >
             <StatusDot :state="props.status" />
+            <span v-if="props.dev" class="dev" title="Apollo Dev">DEV</span>
             <span class="title">{{ props.target?.title ?? 'No session' }}</span>
             <span v-if="props.target?.activity === 'busy'" class="activity">· working</span>
             <span v-if="props.otherUnread" class="unread" aria-label="Another session has unread replies" />
@@ -116,6 +118,16 @@ defineExpose({
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+}
+.dev {
+    flex: none;
+    padding: 0 5px;
+    border-radius: 6px;
+    background: var(--warn);
+    color: #18181b;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
 }
 .activity {
     flex: none;

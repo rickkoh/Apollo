@@ -20,6 +20,8 @@ const root = ref<HTMLElement | null>(null)
 const input = ref<InstanceType<typeof InputIsland> | null>(null)
 const pickerOpen = ref(false)
 const delivered = ref(false)
+const dev = ref(false)
+api.about().then(info => (dev.value = info.channel === 'dev'))
 
 const hub = useHub()
 const { sessions } = useSessions()
@@ -117,6 +119,7 @@ function openPanel(): void {
             :other-unread="otherUnread"
             :picker-open="pickerOpen"
             :delivered="delivered"
+            :dev="dev"
             @send="send"
             @toggle-picker="pickerOpen = !pickerOpen"
         />

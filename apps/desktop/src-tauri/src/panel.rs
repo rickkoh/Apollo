@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::cli::{CliError, MARKER, OurScript, single_quoted};
+use crate::cli::{CliError, OurScript, header, single_quoted};
 
 pub const SETTING: &str = "claudeCode.claudeProcessWrapper";
 const COMMAND: &str = "cv-panel";
@@ -48,16 +48,15 @@ pub struct PanelStatus {
 }
 
 /// Sessions (their arguments carry `--input-format`) go through the bridge; every other call runs unchanged.
-pub fn script(bridge: &Path) -> String {
-    format!(
-        "#!/bin/sh\n\
-         {MARKER}\n\
-         case \" $* \" in\n    \
+pub fn script(bridge: &Path, discovery: &Path) -> String {
+    header(discovery)
+        + &format!(
+            "case \" $* \" in\n    \
          *\" --input-format \"*|*\" --input-format=\"*) exec node {} \"$@\" ;;\n\
          esac\n\
          exec \"$@\"\n",
-        single_quoted(bridge)
-    )
+            single_quoted(bridge)
+        )
 }
 
 /// The wrapper an editor's `settings.json` sets, skipping `//` comment lines; settings files are JSON with comments.
@@ -79,6 +78,7 @@ pub struct PanelLauncher {
     pub bin_dir: PathBuf,
     /// The bundled `panel-bridge.js`.
     pub bridge: PathBuf,
+    pub discovery: PathBuf,
     /// `~/Library/Application Support`, where the editors keep their settings.
     pub app_support: PathBuf,
 }
@@ -114,7 +114,7 @@ impl PanelLauncher {
 
     pub fn status(&self) -> PanelStatus {
         let file = self.file();
-        let state = file.state(&script(&self.bridge));
+        let state = file.state(&script(&self.bridge, &self.discovery));
         let path = file.target.to_string_lossy().into_owned();
         PanelStatus {
             installed: state.installed,
@@ -130,7 +130,7 @@ impl PanelLauncher {
     }
 
     pub fn install(&self) -> Result<PanelStatus, CliError> {
-        self.file().write(&script(&self.bridge))?;
+        self.file().write(&script(&self.bridge, &self.discovery))?;
         Ok(self.status())
     }
 }
@@ -145,8 +145,16 @@ mod tests {
         PanelLauncher {
             bin_dir: dir.path().join("bin"),
             bridge: PathBuf::from("/Apps/Voice Bridge.app/plugin/voice/dist/panel-bridge.js"),
+            discovery: dir.path().join("data/hub.json"),
             app_support: dir.path().join("Application Support"),
         }
+    }
+
+    #[test]
+    fn the_launcher_points_sessions_at_its_apps_hub() {
+        let dir = tempfile::tempdir().unwrap();
+        let l = launcher(&dir);
+        assert!(script(&l.bridge, &l.discovery).starts_with(&header(&l.discovery)));
     }
 
     fn executable(path: &Path, text: &str) {

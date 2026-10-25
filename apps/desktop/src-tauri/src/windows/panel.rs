@@ -9,7 +9,7 @@ pub const NAVIGATE: &str = "panel-navigate";
 fn create(app: &AppHandle, route: Option<&str>) -> tauri::Result<WebviewWindow> {
     let url = format!("panel.html#{}", route.unwrap_or("/"));
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(url.into()))
-        .title("Voice Bridge")
+        .title(&app.package_info().name)
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
         .inner_size(960.0, 640.0)

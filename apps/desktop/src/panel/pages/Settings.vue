@@ -13,7 +13,7 @@ const { settings } = useSettings()
 const cli = useCli()
 const hub = useHub()
 const info = ref<AboutInfo | null>(null)
-api.about().then(a => (info.value = a))
+const stable = computed(() => info.value?.channel === 'stable')
 
 const plugin = ref<PluginStatus | null>(null)
 const pluginError = ref<string | null>(null)
@@ -25,15 +25,18 @@ async function loadPlugin(): Promise<void> {
         pluginError.value = api.isUiError(err) ? err.message : String(err)
     }
 }
-loadPlugin()
 
 const panel = ref<PanelStatus | null>(null)
 const loadPanel = async () => (panel.value = await api.panelStatus())
-loadPanel()
+
+api.about().then(a => {
+    info.value = a
+    if (stable.value) Promise.all([loadPlugin(), loadPanel()])
+})
 
 async function install(): Promise<void> {
     await cli.install()
-    await Promise.all([loadPlugin(), loadPanel()])
+    if (stable.value) await Promise.all([loadPlugin(), loadPanel()])
 }
 
 const panelHint = computed(() => {
@@ -144,7 +147,7 @@ async function clearAll(): Promise<void> {
         <h2>Terminal command</h2>
         <Card>
             <SettingRow
-                label="cv"
+                :label="cli.status.value?.command ?? 'cv'"
                 :hint="cli.status.value?.installed ? (cli.status.value.upToDate ? 'Installed' : 'Installed, a reinstall is due') : 'Not installed'"
             >
                 <button class="button" type="button" :disabled="cli.busy.value || cli.status.value?.foreign" @click="install">
@@ -153,33 +156,40 @@ async function clearAll(): Promise<void> {
             </SettingRow>
             <p class="dim path"><code>{{ cli.status.value?.path }}</code></p>
             <p v-if="cli.status.value?.foreign" class="error-text">
-                A <code>cv</code> that Voice Bridge didn't write is already there; remove or rename it to install.
+                A <code>{{ cli.status.value.command }}</code> that Voice Bridge didn't write is already there; remove or
+                rename it to install.
             </p>
             <p v-if="cli.status.value && !cli.status.value.onPath" class="warn">
                 <code>~/.local/bin</code> isn't on your <code>PATH</code>. Add
                 <code>export PATH="$HOME/.local/bin:$PATH"</code> to your shell profile.
             </p>
-            <SettingRow label="Voice plugin" :hint="pluginHint" />
-            <SettingRow v-if="approval" label="Channel approval" :hint="approvalHints[approval]">
+            <p v-if="info && !stable" class="dim">
+                <code>cv-dev</code> runs this checkout's plugin with the development flag, so Claude Code shows its
+                development-channels dialog.
+            </p>
+            <SettingRow v-if="stable" label="Voice plugin" :hint="pluginHint" />
+            <SettingRow v-if="stable && approval" label="Channel approval" :hint="approvalHints[approval]">
                 <button v-if="approval !== 'approved' && approval !== 'conflict'" class="button" type="button" @click="copyApproval">
                     {{ copiedApproval ? 'Copied' : 'Copy' }}
                 </button>
             </SettingRow>
-            <pre v-if="approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
+            <pre v-if="stable && approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
             <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>
         </Card>
 
-        <h2>Cursor and VS Code panels</h2>
-        <Card>
-            <SettingRow label="cv-panel" :hint="panelHint" />
-            <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
-                <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
-                    {{ copiedSetting ? 'Copied' : 'Copy' }}
-                </button>
-            </SettingRow>
-            <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
-            <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
-        </Card>
+        <template v-if="stable">
+            <h2>Cursor and VS Code panels</h2>
+            <Card>
+                <SettingRow label="cv-panel" :hint="panelHint" />
+                <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
+                    <button v-if="editor.wrapper !== 'ours'" class="button" type="button" @click="copySetting">
+                        {{ copiedSetting ? 'Copied' : 'Copy' }}
+                    </button>
+                </SettingRow>
+                <pre v-if="panel?.editors.some(e => e.wrapper !== 'ours')" class="command"><code>{{ panel.setting }}</code></pre>
+                <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
+            </Card>
+        </template>
 
         <h2>History</h2>
         <Card>
@@ -203,6 +213,10 @@ async function clearAll(): Promise<void> {
         <h2>About</h2>
         <Card>
             <SettingRow label="Version"><span class="dim">{{ info?.version }}</span></SettingRow>
+            <SettingRow label="Channel">
+                <span class="dim">{{ info ? (stable ? 'Stable' : 'Dev build') : '' }}</span>
+            </SettingRow>
+            <SettingRow label="Commit"><span class="dim">{{ info?.commit }}</span></SettingRow>
             <SettingRow label="Hub port">
                 <span class="dim">{{ hub.running.value ? (hub.port.value ?? '…') : 'not running' }}</span>
             </SettingRow>

@@ -20,7 +20,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, OPEN_PANEL, "Open Apollo", true, None::<&str>)?;
     let toggle = MenuItem::with_id(app, TOGGLE_OVERLAY, "Show Overlay", true, None::<&str>)?;
     let target = MenuItem::new(app, "Target: none", false, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT, "Quit Voice Bridge", true, Some("CmdOrCtrl+Q"))?;
+    let name = &app.package_info().name;
+    let quit = MenuItem::with_id(app, QUIT, format!("Quit {name}"), true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(app, &[&open, &toggle, &target, &PredefinedMenuItem::separator(app)?])?;
     if cfg!(debug_assertions) {
         menu.append(&MenuItem::with_id(
@@ -36,7 +37,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id("main")
         .icon(Image::from_bytes(include_bytes!("../icons/tray@2x.png"))?)
         .icon_as_template(true)
-        .tooltip("Voice Bridge")
+        .tooltip(name)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| {
