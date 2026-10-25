@@ -61,7 +61,7 @@ pub enum CliError {
     Plugin { step: String, stderr: String },
 }
 
-fn single_quoted(path: &Path) -> String {
+pub(crate) fn single_quoted(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', r"'\''"))
 }
 
@@ -127,28 +127,72 @@ pub fn approval_state(approval_path: &Path) -> ApprovalState {
     ApprovalState::Approved
 }
 
+/// A launcher file of ours: recognised by the marker on line 2, written atomically, never over someone else's file.
+pub(crate) struct OurScript {
+    pub target: PathBuf,
+}
+
+pub(crate) struct ScriptState {
+    pub installed: bool,
+    pub up_to_date: bool,
+    pub foreign: bool,
+}
+
+impl OurScript {
+    pub fn state(&self, expected: &str) -> ScriptState {
+        let existing = fs::read_to_string(&self.target).ok();
+        let ours = existing
+            .as_deref()
+            .is_some_and(|text| text.lines().nth(1) == Some(MARKER));
+        ScriptState {
+            installed: ours,
+            up_to_date: ours && existing.as_deref() == Some(expected),
+            foreign: self.target.exists() && !ours,
+        }
+    }
+
+    pub fn write(&self, text: &str) -> Result<(), CliError> {
+        if self.state(text).foreign {
+            return Err(CliError::Conflict(self.target.to_string_lossy().into_owned()));
+        }
+        let dir = self.target.parent().unwrap_or(Path::new("."));
+        fs::create_dir_all(dir)?;
+        let name = self.target.file_name().unwrap_or_default().to_string_lossy();
+        let tmp = dir.join(format!(".{name}.voice-bridge.tmp"));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o755)
+            .open(&tmp)?;
+        file.write_all(text.as_bytes())?;
+        file.sync_all()?;
+        fs::rename(&tmp, &self.target)?;
+        Ok(())
+    }
+}
+
 pub struct Launcher {
     pub bin_dir: PathBuf,
     pub approval_path: PathBuf,
 }
 
 impl Launcher {
-    fn target(&self) -> PathBuf {
-        self.bin_dir.join(COMMAND)
+    fn file(&self) -> OurScript {
+        OurScript {
+            target: self.bin_dir.join(COMMAND),
+        }
     }
 
     pub fn status(&self, path_env: Option<&OsStr>) -> CliStatus {
-        let target = self.target();
-        let existing = fs::read_to_string(&target).ok();
-        let ours = existing
-            .as_deref()
-            .is_some_and(|text| text.lines().nth(1) == Some(MARKER));
+        let file = self.file();
+        let state = file.state(&script(&self.approval_path));
         CliStatus {
-            installed: ours,
-            up_to_date: ours && existing.as_deref() == Some(script(&self.approval_path).as_str()),
-            path: target.to_string_lossy().into_owned(),
+            installed: state.installed,
+            up_to_date: state.up_to_date,
+            path: file.target.to_string_lossy().into_owned(),
             on_path: path_env.is_some_and(|paths| std::env::split_paths(paths).any(|p| p == self.bin_dir)),
-            foreign: target.exists() && !ours,
+            foreign: state.foreign,
             approval: approval_state(&self.approval_path),
             approval_command: approval_command(&self.approval_path),
         }
@@ -156,21 +200,7 @@ impl Launcher {
 
     /// Writes or rewrites our launcher; never overwrites a file without the marker.
     pub fn install(&self, path_env: Option<&OsStr>) -> Result<CliStatus, CliError> {
-        let target = self.target();
-        if self.status(path_env).foreign {
-            return Err(CliError::Conflict(target.to_string_lossy().into_owned()));
-        }
-        fs::create_dir_all(&self.bin_dir)?;
-        let tmp = self.bin_dir.join(".cv.voice-bridge.tmp");
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o755)
-            .open(&tmp)?;
-        file.write_all(script(&self.approval_path).as_bytes())?;
-        file.sync_all()?;
-        fs::rename(&tmp, &target)?;
+        self.file().write(&script(&self.approval_path))?;
         Ok(self.status(path_env))
     }
 }

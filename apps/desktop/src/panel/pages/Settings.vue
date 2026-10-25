@@ -4,7 +4,7 @@ import * as api from '../../shared/api'
 import { useCli } from '../../shared/composables/useCli'
 import { useHub } from '../../shared/composables/useHub'
 import { useSettings } from '../../shared/composables/useSettings'
-import type { AboutInfo, ApprovalState, PluginStatus } from '../../shared/types'
+import type { AboutInfo, ApprovalState, EditorPanel, PanelStatus, PluginStatus } from '../../shared/types'
 import Card from '../components/Card.vue'
 import SettingRow from '../components/SettingRow.vue'
 import Toggle from '../components/Toggle.vue'
@@ -27,9 +27,38 @@ async function loadPlugin(): Promise<void> {
 }
 loadPlugin()
 
+const panel = ref<PanelStatus | null>(null)
+const loadPanel = async () => (panel.value = await api.panelStatus())
+loadPanel()
+
 async function install(): Promise<void> {
     await cli.install()
-    await loadPlugin()
+    await Promise.all([loadPlugin(), loadPanel()])
+}
+
+const panelHint = computed(() => {
+    if (!panel.value) return 'Checking…'
+    if (panel.value.foreign) return "A cv-panel that Voice Bridge didn't write is in the way"
+    if (!panel.value.installed) return 'Not installed: click Install above'
+    return panel.value.upToDate ? 'Installed' : 'Installed, a reinstall is due'
+})
+
+function editorHint(editor: EditorPanel): string {
+    switch (editor.wrapper) {
+        case 'ours':
+            return 'Set up: panel sessions started from now on get voice'
+        case 'unset':
+            return 'Add the line below to its settings.json (Preferences: Open User Settings (JSON))'
+        case 'other':
+            return `Uses another wrapper (${editor.current}), left alone`
+    }
+}
+
+const copiedSetting = ref(false)
+async function copySetting(): Promise<void> {
+    await navigator.clipboard.writeText(panel.value?.setting ?? '')
+    copiedSetting.value = true
+    setTimeout(() => (copiedSetting.value = false), 1500)
 }
 
 const pluginHint = computed(() => {
@@ -138,6 +167,18 @@ async function clearAll(): Promise<void> {
             </SettingRow>
             <pre v-if="approval && approval !== 'approved' && approval !== 'conflict'" class="command"><code>{{ cli.status.value?.approvalCommand }}</code></pre>
             <p v-if="cli.error.value" class="error-text">{{ cli.error.value }}</p>
+        </Card>
+
+        <h2>Cursor and VS Code panels</h2>
+        <Card>
+            <SettingRow label="cv-panel" :hint="panelHint" />
+            <SettingRow v-for="editor in panel?.editors ?? []" :key="editor.name" :label="editor.name" :hint="editorHint(editor)">
+                <button v-if="editor.wrapper === 'unset'" class="button" type="button" @click="copySetting">
+                    {{ copiedSetting ? 'Copied' : 'Copy' }}
+                </button>
+            </SettingRow>
+            <pre v-if="panel?.editors.some(e => e.wrapper === 'unset')" class="command"><code>{{ panel.setting }}</code></pre>
+            <p v-if="panel && panel.editors.length === 0" class="dim">Neither Cursor nor VS Code is installed.</p>
         </Card>
 
         <h2>History</h2>

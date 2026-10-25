@@ -22,6 +22,7 @@
     "allow-cli-status",
     "allow-install-cli",
     "allow-plugin-status",
+    "allow-panel-status",
     "allow-about",
     "allow-reveal-data-folder",
     "core:window:allow-start-dragging"

@@ -11,8 +11,10 @@ pub struct AppPaths {
     pub discovery: PathBuf,
     /// The bundled marketplace holding the voice plugin (`<resource dir>/plugin`).
     pub marketplace: PathBuf,
-    /// Where `cv` is installed (`~/.local/bin`).
+    /// Where `cv` and `cv-panel` are installed (`~/.local/bin`).
     pub bin: PathBuf,
+    /// `~/Library/Application Support`, where editors keep their settings.
+    pub app_support: PathBuf,
 }
 
 /// Managed Tauri state: the running hub (absent once stopped) and the settings service.

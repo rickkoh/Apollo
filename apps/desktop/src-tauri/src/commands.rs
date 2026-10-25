@@ -7,6 +7,7 @@ use ts_rs::TS;
 use crate::cli::{self, CliStatus, Launcher};
 use crate::error::UiError;
 use crate::events::{self, SETTINGS_CHANGED};
+use crate::panel::{PanelLauncher, PanelStatus};
 use crate::plugin_cli::{BundledPlugin, ClaudeCli, PluginStatus};
 use crate::settings::Settings;
 use crate::state::AppState;
@@ -108,6 +109,14 @@ fn launcher(state: &AppState) -> Launcher {
     }
 }
 
+fn panel_launcher(state: &AppState) -> PanelLauncher {
+    PanelLauncher {
+        bin_dir: state.paths.bin.clone(),
+        bridge: state.paths.marketplace.join("voice/dist/panel-bridge.js"),
+        app_support: state.paths.app_support.clone(),
+    }
+}
+
 fn bundled_plugin(state: &AppState) -> BundledPlugin {
     BundledPlugin {
         marketplace: state.paths.marketplace.clone(),
@@ -126,15 +135,22 @@ pub async fn cli_status(state: State<'_, AppState>) -> CommandResult<CliStatus> 
 #[tauri::command]
 pub async fn install_cli(state: State<'_, AppState>) -> CommandResult<CliStatus> {
     let launcher = launcher(&state);
+    let panel = panel_launcher(&state);
     let plugin = bundled_plugin(&state);
     tauri::async_runtime::spawn_blocking(move || {
         let path = cli::login_shell_var("PATH");
         plugin.install(&ClaudeCli::new(path.clone()))?;
+        panel.install()?;
         launcher.install(path.as_deref())
     })
     .await
     .map_err(UiError::internal)?
     .map_err(UiError::from)
+}
+
+#[tauri::command]
+pub fn panel_status(state: State<'_, AppState>) -> PanelStatus {
+    panel_launcher(&state).status()
 }
 
 /// Runs `claude` twice, so only Settings asks.
