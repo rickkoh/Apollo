@@ -266,6 +266,16 @@ Record every new decision and question here.
   through the hub's `forget`; the hub is unchanged. Every project folder is read, so Claude Code's folder naming is
   not parsed. When `projects/` is missing or holds no transcripts, the shell keeps every session and logs it, so a
   changed layout never wipes the history. Messages keep their own retention setting.
+- **D95 The control panel takes Wispr Flow's layout:** the window buttons sit inset in a 44 px title strip
+  (`traffic_light_position`) beside a sidebar toggle, which collapses the sidebar to an icon rail; pages sit on a
+  rounded sheet inset from the window edge; icons are inline SVG line icons (`Icon.vue`). Settings is a modal
+  `<dialog>` over the current page, with its own section nav and the version at its foot. The open section lives in the
+  query (`?settings=about`) and `/settings/:section` redirects there, so a deep link such as the tray's Update item
+  opens it over the page showing, and navigating to another page closes it.
+- **D96 The Sessions table has four columns:** session, folder, last activity and actions. Unread is a pill beside the
+  title; a folder shows home-relative (`~/…`, from Tauri's home directory) and truncates from the left; row actions are
+  icon buttons in fixed slots, so Set as target, Rename and Forget line up across rows; the title links to the session
+  detail, so the keyboard reaches it.
 
 ## 3. Architecture
 
@@ -766,7 +776,7 @@ Nothing else constructs services.
 |---|---|---|
 | Entry | `overlay.html` | `panel.html` (vue-router, hash history) |
 | Created | at startup, hidden | on first open; afterwards hidden and reshown |
-| Builder | `decorations(false)`, `transparent(true)`, `shadow(false)`, `always_on_top(true)`, `visible_on_all_workspaces(true)`, `skip_taskbar(true)`, `resizable(false)`, `focused(false)` | `title_bar_style(Overlay)`, `hidden_title(true)`, 960 × 640, minimum 760 × 520, `center()` |
+| Builder | `decorations(false)`, `transparent(true)`, `shadow(false)`, `always_on_top(true)`, `visible_on_all_workspaces(true)`, `skip_taskbar(true)`, `resizable(false)`, `focused(false)` | `title_bar_style(Overlay)`, `hidden_title(true)`, `traffic_light_position(16, 24)` (D95), 960 × 640, minimum 760 × 520, `center()` |
 | Native | `macos::float_over_full_screen` after building (§9.4) | none |
 | Size | width 420 logical px; height from `overlay_resize` | user-resizable |
 | Position | bottom-right of the primary display's work area, 16 px margin (§9.5) | centred on first open |
@@ -858,8 +868,8 @@ Errors return `UiError { code, message }` with codes `empty`, `too_large`, `no_t
 ### 9.8 Capabilities
 
 Tauri v2 permissions per window, least privilege: `capabilities/overlay.json` grants the overlay's commands from
-§9.7 plus `core:event:default`; `capabilities/panel.json` grants the panel's. The app manifest in `build.rs` lists the
-commands so unlisted ones are denied.
+§9.7 plus `core:event:default`; `capabilities/panel.json` grants the panel's, plus `core:path:allow-resolve-directory`
+for the home folder (D96). The app manifest in `build.rs` lists the commands so unlisted ones are denied.
 
 ### 9.9 `tauri.conf.json` essentials
 
@@ -896,8 +906,8 @@ src/
     composables/          useSessions.ts, useTarget.ts, useReplies.ts, usePasteToSend.ts, useAutoResize.ts
   panel/
     main.ts  App.vue  router.ts
-    components/           Sidebar.vue, Card.vue, MessageRow.vue, SettingRow.vue
-    pages/                Home.vue, Sessions.vue, SessionDetail.vue, Shortcuts.vue, Settings.vue
+    components/           Sidebar.vue, SettingsDialog.vue, Card.vue, MessageRow.vue, SettingRow.vue
+    pages/                Home.vue, Sessions.vue, SessionDetail.vue, Shortcuts.vue, Settings.vue (the dialog's body)
 ```
 
 ### 10.3 `api.ts`
@@ -924,7 +934,8 @@ Errors arrive as `UiError`. Components never call `invoke` or `listen` directly.
 | `MessageStack` | `cards`, `previewLines` | `hover`, `open-panel` | transition group of `ReplyIsland` cards (D36) |
 | `ReplyIsland` | `card`, `previewLines` | `update:expanded`, `open-panel` | one card: clamped preview, **more** expands, click toggles |
 | `SessionPicker` | `sessions`, `targetId` | `select(id)`, `close` | live first, then ended (disabled); Esc or outside click closes |
-| `Sidebar` | `routes` | | logo, nav, Settings at the bottom |
+| `Sidebar` | `collapsed` | | logo, nav, Settings at the bottom; an icon rail when collapsed |
+| `SettingsDialog` | `section` | | modal `<dialog>`: section nav, version, `Settings` for the section; Esc, the close button or a backdrop click closes it (D95) |
 
 ### 10.6 Design tokens
 
@@ -936,13 +947,17 @@ blur cannot see the desktop behind a transparent window, and native blur would a
 | `--island-bg` | `rgb(24 24 27 / 0.92)` | `rgb(255 255 255 / 0.94)` |
 | `--island-border` | `rgb(255 255 255 / 0.08)` | `rgb(0 0 0 / 0.08)` |
 | `--island-shadow` | `0 8px 24px rgb(0 0 0 / 0.35)` | `0 8px 24px rgb(0 0 0 / 0.12)` |
-| `--panel-bg` / `--card-bg` | `#111113` / `#18181b` | `#faf9f7` / `#ffffff` |
+| `--panel-bg` / `--surface` / `--card-bg` | `#111113` / `#18181b` / `#1f1f23` | `#f2f1ee` / `#fafaf8` / `#ffffff` |
+| `--control` / `--control-hover` | `rgb(255 255 255 / 0.07)` / `0.11` | `rgb(0 0 0 / 0.05)` / `0.09` |
+| `--backdrop` / `--dialog-shadow` | `rgb(0 0 0 / 0.5)` / `0 24px 64px rgb(0 0 0 / 0.5)` | `rgb(0 0 0 / 0.2)` / `… / 0.18` |
 | `--text` / `--text-dim` | `#f4f4f5` / `#a1a1aa` | `#18181b` / `#71717a` |
 | `--accent` | `AccentColor` (system accent) | same |
 | `--ok` / `--warn` / `--error` / `--idle` | `#34d399` / `#fbbf24` / `#f87171` / `#71717a` | same |
-| `--radius-input` / `--radius-reply` / `--radius-card` | `22px` / `18px` / `14px` | same |
+| `--radius-input` / `--radius-reply` / `--radius-card` / `--radius-sheet` | `22px` / `18px` / `14px` / `12px` | same |
 
-Font: `-apple-system`, 13 px in the overlay, 14 px in the panel. Motion: height and opacity transitions only,
+The window and sidebar use `--panel-bg`, the page sheet and the settings dialog `--surface`, and cards `--card-bg`;
+buttons and inputs are filled with `--control`. Font: `-apple-system`, 13 px in the overlay, 14 px in the panel; page
+titles use `--font-display` (`ui-serif`, the system's New York). Motion: height and opacity transitions only,
 150–200 ms, and none under `prefers-reduced-motion`.
 
 ### 10.7 Overlay
@@ -1012,32 +1027,51 @@ greyed out and not selectable. Selecting calls `set_target` and closes.
 ### 10.8 Control panel
 
 ```
-┌──────────────┬───────────────────────────────────────────────────────────┐
-│ ◖◗ Apollo    │  Good evening                                             │
-│              │  ┌───────────────┐ ┌───────────────┐ ┌──────────────────┐ │
-│              │  │ Overlay   On  │ │ Live sessions │ │ Target           │ │
-│ ⌂ Home       │  │               │ │ 2             │ │ orders.service   │ │
-│ ☰ Sessions   │  └───────────────┘ └───────────────┘ └──────────────────┘ │
-│ ⌘ Shortcuts  │  Start a voice session                                    │
-│              │  ┌─────────────────────────────────────────────┐ [Copy]   │
-│              │  │ $ cv                                        │          │
-│              │  └─────────────────────────────────────────────┘          │
-│              │  Recent                                                   │
-│              │  TODAY                                                    │
-│              │  19:02  you → orders.service    click Settle              │
-│ ⚙ Settings   │  19:02  orders.service          Clicked "Settle". The…    │
-└──────────────┴───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ ● ● ●  ▯                                                                 │
+│ ◖◗ Apollo    ╭─────────────────────────────────────────────────────────╮ │
+│              │  Good evening                                           │ │
+│ ⌂ Home       │  ┌──────────────┐ ┌───────────────┐ ┌────────────────┐  │ │
+│ ▣ Sessions   │  │ Overlay  On  │ │ Live sessions │ │ Target         │  │ │
+│ ⌘ Shortcuts  │  │              │ │ 2             │ │ orders.service │  │ │
+│              │  └──────────────┘ └───────────────┘ └────────────────┘  │ │
+│              │  Start a voice session                                  │ │
+│              │  ┌───────────────────────────────────────────────────┐  │ │
+│              │  │ $ cv                                       [Copy] │  │ │
+│              │  └───────────────────────────────────────────────────┘  │ │
+│              │  Recent                                                 │ │
+│              │  TODAY                                                  │ │
+│              │  ┌───────────────────────────────────────────────────┐  │ │
+│              │  │ 19:02  you → orders.service   click Settle        │  │ │
+│ ⚙ Settings   │  │ 19:02  orders.service         Clicked "Settle"…   │  │ │
+│              ╰─────────────────────────────────────────────────────────╯ │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-A 36 px strip across the top of the window drags it, as in Wispr Flow; pages scroll below it, so it never scrolls away.
+A 44 px title strip across the top drags the window and holds the inset window buttons and the sidebar toggle (D95);
+pages scroll inside the sheet below it, so it never scrolls away. Settings opens as a dialog over the page:
+
+```
+╭──────────────────┬─────────────────────────────────────────────────╮
+│ SETTINGS         │ General                                       ✕ │
+│ ≡ General        │ ┌─────────────────────────────────────────────┐ │
+│ ▭ Overlay        │ │ Show the overlay at launch             (●)  │ │
+│ › Terminal       │ │ Open at login                          ( )  │ │
+│ ‹› Editors       │ └─────────────────────────────────────────────┘ │
+│ ↺ History        │                                                 │
+│ APOLLO           │                                                 │
+│ ⓘ About          │                                                 │
+│ Apollo v0.1.1    │                                                 │
+╰──────────────────┴─────────────────────────────────────────────────╯
+```
 
 | Page | Content |
 |---|---|
 | Home | greeting; status cards (overlay on or off with a toggle, live sessions, target); the `cv` command with Copy, or an Install button when `cv` isn't installed; recent messages across sessions grouped by day |
-| Sessions | table of live and ended sessions: title, folder, last activity, unread; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only); a row opens Session detail |
+| Sessions | table of live and ended sessions: title with an unread pill, folder, last activity; row actions **Set as target**, **Rename** (empty returns to Claude's title, D90), **Forget** (ended only) as icon buttons (D96); a row opens Session detail |
 | Session detail | the conversation as a timeline, newest at the bottom, with delivery status per sent message; loads older pages on scroll |
 | Shortcuts | skeleton: "Focus the voice box" and "Show or hide the overlay", each with a disabled key field and "Coming soon" |
-| Settings | **General:** show the overlay at launch; target new sessions (D92). **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
+| Settings | a dialog (D95). **General:** show the overlay at launch; target new sessions (D92). **Overlay:** reply preview lines. **Terminal command:** `cv` with Install or Reinstall (which also sets up the plugin), the path, a PATH warning; the voice plugin's state; channel approval (Approved, or what's wrong with the `sudo` command and Copy). **History:** keep for N days, Clear all history (confirm). **About:** version, hub port, data folder with Reveal in Finder |
 
 ### 10.9 Accessibility
 
