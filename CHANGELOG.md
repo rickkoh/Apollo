@@ -2,6 +2,11 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.6.0 - 2026-10-26
+
+### Features
+
+- shortcuts: double-tap a modifier key to open the island
 ## 0.5.0 - 2026-10-25
 
 ### Features
