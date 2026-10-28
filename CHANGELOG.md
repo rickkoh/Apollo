@@ -2,6 +2,15 @@
 
 Generated from the commit history by git-cliff at each release. Dates are UTC.
 
+## 0.7.0 - 2026-10-28
+
+### Features
+
+- settings: warn when the login shell has no node
+
+### Fixes
+
+- panel: run plain claude when the bridge can't start
 ## 0.6.0 - 2026-10-26
 
 ### Features
