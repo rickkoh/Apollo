@@ -218,6 +218,10 @@ async function clearAll(): Promise<void> {
                 <code>~/.local/bin</code> isn't on your <code>PATH</code>. Add
                 <code>export PATH="$HOME/.local/bin:$PATH"</code> to your shell profile.
             </p>
+            <p v-if="cli.status.value && !cli.status.value.nodeFound" class="warn">
+                Voice needs <code>node</code>, and your shell can't find one. Check <code>node -v</code> in a
+                terminal; with nvm, point <code>nvm alias default</code> at an installed version.
+            </p>
             <p v-if="info && !stable" class="dim">
                 <code>cv-dev</code> runs this checkout's plugin with the development flag, so Claude Code shows its
                 development-channels dialog.

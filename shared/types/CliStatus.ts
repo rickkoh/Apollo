@@ -19,6 +19,10 @@ upToDate: boolean, path: string,
  */
 onPath: boolean, 
 /**
+ * `node`, which the voice channel runs on, is on the user's login-shell `PATH`.
+ */
+nodeFound: boolean, 
+/**
  * A `cv` we didn't write is in the way.
  */
 foreign: boolean, approval: ApprovalState, 

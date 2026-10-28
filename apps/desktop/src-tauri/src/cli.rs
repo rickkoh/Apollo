@@ -3,7 +3,7 @@
 use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -47,6 +47,8 @@ pub struct CliStatus {
     pub path: String,
     /// The folder is on the user's login-shell `PATH`.
     pub on_path: bool,
+    /// `node`, which the voice channel runs on, is on the user's login-shell `PATH`.
+    pub node_found: bool,
     /// A `cv` we didn't write is in the way.
     pub foreign: bool,
     pub approval: ApprovalState,
@@ -236,6 +238,8 @@ impl Launcher {
             up_to_date: state.up_to_date,
             path: file.target.to_string_lossy().into_owned(),
             on_path: path_env.is_some_and(|paths| std::env::split_paths(paths).any(|p| p == self.bin_dir)),
+            node_found: path_env
+                .is_some_and(|paths| std::env::split_paths(paths).any(|p| is_executable(&p.join("node")))),
             foreign: state.foreign,
             approval: approval_state(&self.approval_path),
             approval_command: approval_command(&self.approval_path),
@@ -247,6 +251,10 @@ impl Launcher {
         self.file().write(&self.script())?;
         Ok(self.status(path_env))
     }
+}
+
+fn is_executable(path: &Path) -> bool {
+    fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
 /// This checkout's `plugin/voice`, which Apollo Dev's `cv-dev` loads (D75).
@@ -473,5 +481,20 @@ mod tests {
         let with = std::env::join_paths([PathBuf::from("/usr/bin"), l.bin_dir.clone()]).unwrap();
         assert!(l.status(Some(&with)).on_path);
         assert!(!l.status(Some(OsStr::new("/usr/bin:/bin"))).on_path);
+    }
+
+    #[test]
+    fn node_found_reads_the_given_path() {
+        let f = fixture();
+        let l = &f.launcher;
+        let bin = f.dir.path().join("node-bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("node"), "#!/bin/sh\n").unwrap();
+        let with = std::env::join_paths([PathBuf::from("/nonexistent"), bin.clone()]).unwrap();
+        assert!(!l.status(Some(&with)).node_found, "not executable");
+        fs::set_permissions(bin.join("node"), fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(l.status(Some(&with)).node_found);
+        assert!(!l.status(Some(OsStr::new("/nonexistent"))).node_found);
+        assert!(!l.status(None).node_found);
     }
 }
