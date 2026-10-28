@@ -1724,20 +1724,24 @@ extension never sends. The panel bridge sends it on the extension's behalf (D67,
 #!/bin/sh
 # apollo launcher
 case " $* " in
-    *" --input-format "*|*" --input-format="*) exec node '<resource dir>/plugin/voice/dist/panel-bridge.js' "$@" ;;
+    *" --input-format "*|*" --input-format="*)
+        if [ ! -f '<bridge>' ]; then echo "apollo: voice off, the panel bridge is missing" >&2
+        elif ! command -v node >/dev/null 2>&1; then echo "apollo: voice off, node is not on PATH" >&2
+        else exec node '<bridge>' "$@"; fi ;;
 esac
 exec "$@"
 ```
 
-- `panel-bridge.js` is the plugin's second bundle (`src/bridge.ts`, entry `src/bridge-main.ts`), shipped beside
-  `channel.js`.
+- `<bridge>` is `<resource dir>/plugin/voice/dist/panel-bridge.js`, the plugin's second bundle (`src/bridge.ts`,
+  entry `src/bridge-main.ts`), shipped beside `channel.js`.
 - The bridge starts `<binary> <args> --settings '{"enabledPlugins":{"voice@apollo":true}}'` with
   `APOLLO_HOST=panel`. It forwards the extension's lines to claude and claude's lines to the extension. After
   claude answers the extension's `initialize`, it sends `channel_enable` (`request_id` `apollo-<n>`), retrying
   every second while the server isn't connected, up to 30 times, and drops claude's answers to those requests. It
   passes stderr through, forwards SIGTERM, SIGINT and SIGHUP, and exits with claude's code.
 - A bridge fault costs voice in a panel, never the panel: nothing of ours is sent before the extension's own first
-  request is answered, and nothing of the extension's is changed.
+  request is answered, and nothing of the extension's is changed. A session the bridge can't start (its file or
+  `node` missing) runs plain claude; the channel runs on the same `node`, so voice couldn't work there anyway.
 
 ### 24.3 Setup (D70)
 

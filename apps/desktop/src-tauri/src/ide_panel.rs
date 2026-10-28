@@ -47,15 +47,19 @@ pub struct IdePanelStatus {
     pub editors: Vec<EditorPanel>,
 }
 
-/// Sessions (their arguments carry `--input-format`) go through the bridge; every other call runs unchanged.
+/// Sessions (their arguments carry `--input-format`) go through the bridge; every other call, and a session the
+/// bridge can't start, runs unchanged.
 pub fn script(bridge: &Path, discovery: &Path) -> String {
+    let bridge = single_quoted(bridge);
     header(discovery)
         + &format!(
             "case \" $* \" in\n    \
-         *\" --input-format \"*|*\" --input-format=\"*) exec node {} \"$@\" ;;\n\
+         *\" --input-format \"*|*\" --input-format=\"*)\n        \
+         if [ ! -f {bridge} ]; then echo \"apollo: voice off, the panel bridge is missing\" >&2\n        \
+         elif ! command -v node >/dev/null 2>&1; then echo \"apollo: voice off, node is not on PATH\" >&2\n        \
+         else exec node {bridge} \"$@\"; fi ;;\n\
          esac\n\
-         exec \"$@\"\n",
-            single_quoted(bridge)
+         exec \"$@\"\n"
         )
 }
 
@@ -142,9 +146,12 @@ mod tests {
     use super::*;
 
     fn launcher(dir: &tempfile::TempDir) -> IdePanelLauncher {
+        let bridge = dir.path().join("Apollo.app/plugin/voice/dist/panel-bridge.js");
+        fs::create_dir_all(bridge.parent().unwrap()).unwrap();
+        fs::write(&bridge, "").unwrap();
         IdePanelLauncher {
             bin_dir: dir.path().join("bin"),
-            bridge: PathBuf::from("/Apps/Apollo.app/plugin/voice/dist/panel-bridge.js"),
+            bridge,
             discovery: dir.path().join("data/hub.json"),
             app_support: dir.path().join("Application Support"),
         }
@@ -163,12 +170,16 @@ mod tests {
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    /// Runs `cv-panel <claude> <args>` with stubs for `claude` and `node` that record their arguments.
-    fn run(dir: &tempfile::TempDir, args: &[&str]) -> (String, Vec<String>) {
+    /// Runs `cv-panel <claude> <args>` with stubs for `claude` and, given `node`, `node` that record their arguments.
+    fn run(dir: &tempfile::TempDir, node: bool, args: &[&str]) -> (String, Vec<String>) {
         let stub = dir.path().join("stub");
         let record = "#!/bin/sh\necho \"$0\" > \"$OUT\"\nprintf '%s\\n' \"$@\" >> \"$OUT\"\n";
         executable(&stub.join("claude"), record);
-        executable(&stub.join("node"), record);
+        if node {
+            executable(&stub.join("node"), record);
+        } else {
+            let _ = fs::remove_file(stub.join("node"));
+        }
         let out = dir.path().join("argv");
         let status = std::process::Command::new(dir.path().join("bin/cv-panel"))
             .arg(stub.join("claude"))
@@ -192,6 +203,7 @@ mod tests {
         let claude = dir.path().join("stub/claude").to_string_lossy().into_owned();
         let (program, argv) = run(
             &dir,
+            true,
             &["--output-format", "stream-json", "--input-format", "stream-json"],
         );
         assert_eq!(program, "node");
@@ -206,11 +218,23 @@ mod tests {
                 "stream-json"
             ]
         );
-        let (program, argv) = run(&dir, &["plugin", "list", "--json"]);
+        let (program, argv) = run(&dir, true, &["plugin", "list", "--json"]);
         assert_eq!(
             (program.as_str(), argv),
             ("claude", vec!["plugin".into(), "list".into(), "--json".into()])
         );
+    }
+
+    #[test]
+    fn a_session_the_bridge_cant_start_runs_claude_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let l = launcher(&dir);
+        l.install().unwrap();
+        let args = ["--input-format", "stream-json"];
+        let unchanged = ("claude".to_owned(), args.map(String::from).to_vec());
+        assert_eq!(run(&dir, false, &args), unchanged, "no node");
+        fs::remove_file(&l.bridge).unwrap();
+        assert_eq!(run(&dir, true, &args), unchanged, "no bridge");
     }
 
     #[test]

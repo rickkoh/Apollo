@@ -24,6 +24,7 @@ development commands.
 - The hub binds 127.0.0.1 only, and every channel must present the token from the discovery file.
 - Voice sessions start through Apollo's launchers: `cv` (Apollo Dev's `cv-dev`) in a terminal, `cv-panel` as an editor
   panel's process wrapper. A panel ignores `--channels`; only the bridge's `channel_enable` switches its channel on.
+  `cv-panel` runs plain claude when the bridge can't start, so a missing `node` never takes the panel down.
 
 ## Environment
 
